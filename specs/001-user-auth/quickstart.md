@@ -39,7 +39,7 @@ cp .env.example .env
 python -c "from app.database import init_db; import asyncio; asyncio.run(init_db())"
 
 # 6. Start the development server
-uvicorn app.main:app --reload --port 8000
+uvicorn main:app --reload --port 8000
 ```
 
 The API is now available at `http://localhost:8000`.
@@ -67,10 +67,7 @@ cd frontend
 # 2. Install dependencies
 npm install
 
-# 3. Create .env.local file
-echo "VITE_API_BASE_URL=http://localhost:8000/api/v1" > .env.local
-
-# 4. Start the development server
+# 3. Start the development server (Vite proxy in vite.config.ts routes /api → localhost:8000)
 npm run dev
 ```
 
