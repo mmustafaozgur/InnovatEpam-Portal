@@ -8,7 +8,7 @@ description: "Task list template for feature implementation"
 **Input**: Design documents from `/specs/[###-feature-name]/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: The examples below include test tasks. Tests are OPTIONAL - only include them if explicitly requested in the feature specification.
+**Tests**: Tests are mandatory. Generate failing tests before implementation tasks for each user story and shared layer, then implement to pass them.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -22,6 +22,8 @@ description: "Task list template for feature implementation"
 
 - **Single project**: `src/`, `tests/` at repository root
 - **Web app**: `backend/src/`, `frontend/src/`
+  - Backend: `api/` routes, `services/` business logic, `repositories/` SQLAlchemy queries, `models/` SQLAlchemy schema, `schemas/` Pydantic contracts
+  - Frontend: React + Vite + TypeScript, Tailwind CSS, shadcn/ui components
 - **Mobile**: `api/src/`, `ios/src/` or `android/src/`
 - Paths shown below assume single project - adjust based on plan.md structure
 
@@ -49,7 +51,7 @@ description: "Task list template for feature implementation"
 **Purpose**: Project initialization and basic structure
 
 - [ ] T001 Create project structure per implementation plan
-- [ ] T002 Initialize [language] project with [framework] dependencies
+- [ ] T002 Initialize FastAPI/Python 3.11+ backend and React/Vite/TypeScript frontend dependencies
 - [ ] T003 [P] Configure linting and formatting tools
 
 ---
@@ -66,8 +68,10 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] T005 [P] Implement authentication/authorization framework
 - [ ] T006 [P] Setup API routing and middleware structure
 - [ ] T007 Create base models/entities that all stories depend on
-- [ ] T008 Configure error handling and logging infrastructure
-- [ ] T009 Setup environment configuration management
+- [ ] T008 Configure repository layer for SQLAlchemy database access
+- [ ] T009 Configure Pydantic schema conventions for API request/response contracts
+- [ ] T010 Configure error handling and logging infrastructure
+- [ ] T011 Setup environment configuration management
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -79,21 +83,23 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 1 (OPTIONAL - only if tests requested) ⚠️
+### Tests for User Story 1 (MANDATORY)
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T010 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T011 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T012 [P] [US1] Unit test for [service/validator] in backend/tests/unit/test_[name].py
+- [ ] T013 [P] [US1] Integration test for [endpoint/database operation] in backend/tests/integration/test_[name].py
+- [ ] T014 [P] [US1] Frontend component test for [interaction] in frontend/src/[path]/[name].test.tsx
 
 ### Implementation for User Story 1
 
-- [ ] T012 [P] [US1] Create [Entity1] model in src/models/[entity1].py
-- [ ] T013 [P] [US1] Create [Entity2] model in src/models/[entity2].py
-- [ ] T014 [US1] Implement [Service] in src/services/[service].py (depends on T012, T013)
-- [ ] T015 [US1] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T016 [US1] Add validation and error handling
-- [ ] T017 [US1] Add logging for user story 1 operations
+- [ ] T015 [P] [US1] Create SQLAlchemy model in backend/src/models/[entity].py
+- [ ] T016 [P] [US1] Create Pydantic schemas in backend/src/schemas/[entity].py
+- [ ] T017 [US1] Implement repository in backend/src/repositories/[entity]_repository.py
+- [ ] T018 [US1] Implement service in backend/src/services/[service].py
+- [ ] T019 [US1] Implement FastAPI route in backend/src/api/[route].py
+- [ ] T020 [US1] Implement React UI with shadcn/ui and Tailwind in frontend/src/[path]/[component].tsx
+- [ ] T021 [US1] Add validation, error handling, accessibility, and responsive behavior
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -105,17 +111,18 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 2 (OPTIONAL - only if tests requested) ⚠️
+### Tests for User Story 2 (MANDATORY)
 
-- [ ] T018 [P] [US2] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T019 [P] [US2] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T022 [P] [US2] Unit test for [service/validator] in backend/tests/unit/test_[name].py
+- [ ] T023 [P] [US2] Integration test for [endpoint/database operation] in backend/tests/integration/test_[name].py
+- [ ] T024 [P] [US2] Frontend component test for [interaction] in frontend/src/[path]/[name].test.tsx
 
 ### Implementation for User Story 2
 
-- [ ] T020 [P] [US2] Create [Entity] model in src/models/[entity].py
-- [ ] T021 [US2] Implement [Service] in src/services/[service].py
-- [ ] T022 [US2] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T023 [US2] Integrate with User Story 1 components (if needed)
+- [ ] T025 [P] [US2] Create/update SQLAlchemy model in backend/src/models/[entity].py
+- [ ] T026 [P] [US2] Create/update Pydantic schemas in backend/src/schemas/[entity].py
+- [ ] T027 [US2] Implement repository and service changes in backend/src/repositories/ and backend/src/services/
+- [ ] T028 [US2] Implement endpoint and UI changes in backend/src/api/ and frontend/src/
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
 
@@ -127,16 +134,18 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 3 (OPTIONAL - only if tests requested) ⚠️
+### Tests for User Story 3 (MANDATORY)
 
-- [ ] T024 [P] [US3] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T025 [P] [US3] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T029 [P] [US3] Unit test for [service/validator] in backend/tests/unit/test_[name].py
+- [ ] T030 [P] [US3] Integration test for [endpoint/database operation] in backend/tests/integration/test_[name].py
+- [ ] T031 [P] [US3] Frontend component test for [interaction] in frontend/src/[path]/[name].test.tsx
 
 ### Implementation for User Story 3
 
-- [ ] T026 [P] [US3] Create [Entity] model in src/models/[entity].py
-- [ ] T027 [US3] Implement [Service] in src/services/[service].py
-- [ ] T028 [US3] Implement [endpoint/feature] in src/[location]/[file].py
+- [ ] T032 [P] [US3] Create/update SQLAlchemy model in backend/src/models/[entity].py
+- [ ] T033 [P] [US3] Create/update Pydantic schemas in backend/src/schemas/[entity].py
+- [ ] T034 [US3] Implement repository and service changes in backend/src/repositories/ and backend/src/services/
+- [ ] T035 [US3] Implement endpoint and UI changes in backend/src/api/ and frontend/src/
 
 **Checkpoint**: All user stories should now be independently functional
 
@@ -153,7 +162,8 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] TXXX [P] Documentation updates in docs/
 - [ ] TXXX Code cleanup and refactoring
 - [ ] TXXX Performance optimization across all stories
-- [ ] TXXX [P] Additional unit tests (if requested) in tests/unit/
+- [ ] TXXX [P] Coverage gap tests to maintain 80% business logic line coverage
+- [ ] TXXX [P] WCAG AA and 375px responsive verification for user-facing UI
 - [ ] TXXX Security hardening
 - [ ] TXXX Run quickstart.md validation
 
@@ -198,13 +208,14 @@ Examples of foundational tasks (adjust based on your project):
 ## Parallel Example: User Story 1
 
 ```bash
-# Launch all tests for User Story 1 together (if tests requested):
-Task: "Contract test for [endpoint] in tests/contract/test_[name].py"
-Task: "Integration test for [user journey] in tests/integration/test_[name].py"
+# Launch all tests for User Story 1 together:
+Task: "Unit test for [service/validator] in backend/tests/unit/test_[name].py"
+Task: "Integration test for [endpoint/database operation] in backend/tests/integration/test_[name].py"
+Task: "Frontend component test for [interaction] in frontend/src/[path]/[name].test.tsx"
 
-# Launch all models for User Story 1 together:
-Task: "Create [Entity1] model in src/models/[entity1].py"
-Task: "Create [Entity2] model in src/models/[entity2].py"
+# Launch model and schema tasks for User Story 1 together:
+Task: "Create SQLAlchemy model in backend/src/models/[entity].py"
+Task: "Create Pydantic schemas in backend/src/schemas/[entity].py"
 ```
 
 ---

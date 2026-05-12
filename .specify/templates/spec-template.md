@@ -80,6 +80,8 @@
 <!--
   ACTION REQUIRED: The content in this section represents placeholders.
   Fill them out with the right functional requirements.
+  Requirements are the source of truth for implementation. Do not rely on chat
+  history for feature scope that is not captured here.
 -->
 
 ### Functional Requirements
@@ -99,6 +101,21 @@
 
 - **[Entity 1]**: [What it represents, key attributes without implementation]
 - **[Entity 2]**: [What it represents, relationships to other entities]
+
+### API Contracts *(include if feature exposes or changes API behavior)*
+
+- **[Endpoint/Operation]**: [Request model, response model, auth expectations, and error cases]
+
+### Architecture & ADR Notes *(include if feature affects architecture)*
+
+- **ADR Required**: [Yes/No - if yes, link ADR before implementation]
+- **Layer Impact**: [Routes, services, repositories, models, schemas, frontend components affected]
+
+### Accessibility & Responsive Requirements *(include for user-facing UI)*
+
+- **Accessibility**: [WCAG AA considerations, keyboard behavior, labels, focus management]
+- **Responsive**: [Behavior at 375px minimum viewport and larger breakpoints]
+- **Design System**: [Reference `design-system/innovatepam/MASTER.md` when present]
 
 ## Success Criteria *(mandatory)*
 

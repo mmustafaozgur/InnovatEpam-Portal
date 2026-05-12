@@ -17,21 +17,30 @@
   the iteration process.
 -->
 
-**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]  
-**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]  
-**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]  
-**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]  
-**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
-**Project Type**: [e.g., library/cli/web-service/mobile-app/compiler/desktop-app or NEEDS CLARIFICATION]  
-**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
-**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
-**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
+**Language/Version**: Python 3.11+ backend; TypeScript strict-mode frontend  
+**Primary Dependencies**: FastAPI, SQLAlchemy, Pydantic, python-jose, React, Vite, Tailwind CSS, shadcn/ui  
+**Storage**: SQLite single-file database unless a constitution-approved ADR changes this  
+**Testing**: pytest + pytest-asyncio; Vitest + React Testing Library; E2E only for critical journeys  
+**Target Platform**: Internal EPAM web application  
+**Project Type**: Full-stack web application  
+**Performance Goals**: [domain-specific measurable target or NEEDS CLARIFICATION]  
+**Constraints**: WCAG AA minimum; responsive to 375px; JWT auth; no direct DB queries outside repositories  
+**Scale/Scope**: [domain-specific employee/user/workflow scope or NEEDS CLARIFICATION]
 
 ## Constitution Check
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+- Spec exists at `specs/[###-feature-name]/spec.md` and is the source of truth for scope.
+- ADR exists before any new architectural decision is implemented.
+- Backend plan preserves route -> service -> repository -> model separation.
+- SQLAlchemy models are used only for persistence and Pydantic models only for API contracts.
+- All API endpoints declare Pydantic request/response models.
+- Python functions and TypeScript code remain strictly typed with no implicit `any`.
+- Test plan follows RED-GREEN-REFACTOR with unit, integration, and critical E2E coverage as applicable.
+- Business logic coverage target remains at least 80% line coverage.
+- UI plan uses Tailwind CSS and shadcn/ui, meets WCAG AA, supports 375px viewport, and follows `design-system/innovatepam/MASTER.md` when present.
+- Technology choices match the constitution baseline or are justified by ADR and Complexity Tracking.
 
 ## Project Structure
 
@@ -68,12 +77,14 @@ tests/
 ├── integration/
 └── unit/
 
-# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
+# [REMOVE IF UNUSED] Option 2: InnovatEPAM Portal web application
 backend/
 ├── src/
-│   ├── models/
-│   ├── services/
-│   └── api/
+│   ├── api/             # FastAPI routes: HTTP translation only
+│   ├── services/        # Business logic
+│   ├── repositories/    # SQLAlchemy database queries
+│   ├── models/          # SQLAlchemy schema models
+│   └── schemas/         # Pydantic API contracts
 └── tests/
 
 frontend/
