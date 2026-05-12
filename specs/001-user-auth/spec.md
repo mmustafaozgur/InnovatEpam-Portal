@@ -72,7 +72,7 @@ An Admin user can view a list of all registered portal users, including each use
 **Acceptance Scenarios**:
 
 1. **Given** an authenticated Admin, **When** they navigate to the user management page, **Then** they see a list of all registered users with their names, emails, and roles displayed.
-2. **Given** an authenticated Admin viewing the user list, **When** they promote a Submitter to Admin, **Then** the user's role is updated immediately and reflected in the list.
+2. **Given** an authenticated Admin viewing the user list, **When** they promote a Submitter to Admin, **Then** the user's role is updated immediately in the database and reflected in the list; the promoted user gains Admin route access on their next login (existing sessions continue as Submitter until re-authentication).
 3. **Given** an authenticated Submitter, **When** they attempt to access the user management page, **Then** they are denied access and shown an appropriate message.
 4. **Given** an authenticated Admin, **When** they view their own entry in the user list, **Then** no promote action is available for their own account (self-promotion is not needed).
 
@@ -81,7 +81,8 @@ An Admin user can view a list of all registered portal users, including each use
 ### Edge Cases
 
 - What happens when a user tries to register with an email already in the system? → Registration is rejected with a clear "email already in use" message.
-- What happens if a session token expires mid-session? → The next request to a protected resource redirects the user to the login page.
+- Is the login endpoint rate-limited against brute-force attempts? → No rate limiting in this release; the portal is an internal employee-only tool. Rate limiting is deferred to a future security hardening feature.
+- What happens if a session token expires mid-session? → The next request to a protected resource redirects the user to the login page. Expiry is enforced via a lazy check (`sessions.expiry_time > now`) in middleware on every request; the expired row is deleted at detection time. No background cleanup job is required for MVP.
 - What happens if the Privacy Policy checkbox is unchecked on form submission? → Registration is blocked; the checkbox is highlighted with an error.
 - What happens if the very first user registration fails halfway? → No user record is persisted; the next successful registration still becomes Admin.
 - What happens if an Admin is demoted to Submitter (future)? → Out of scope for this feature; role changes are one-directional (Submitter → Admin) in this release.
@@ -97,11 +98,11 @@ An Admin user can view a list of all registered portal users, including each use
 - **FR-004**: System MUST automatically assign the Admin role to the first successfully registered user and the Submitter role to all subsequent users.
 - **FR-005**: System MUST allow registered users to log in using their email and password.
 - **FR-006**: System MUST reject login attempts with incorrect credentials without revealing which field (email or password) was wrong.
-- **FR-007**: System MUST establish a secure, time-limited session upon successful login.
-- **FR-008**: System MUST allow authenticated users to log out, which immediately invalidates their session.
+- **FR-007**: System MUST establish a secure, time-limited session upon successful login. The JWT MUST be stored in an httpOnly, SameSite=Lax cookie; the active session MUST be persisted in a server-side `sessions` table in SQLite to enable true revocation.
+- **FR-008**: System MUST allow authenticated users to log out, which immediately invalidates their session by deleting the corresponding row from the server-side `sessions` table and clearing the httpOnly cookie.
 - **FR-009**: System MUST redirect unauthenticated users to the login page when they attempt to access any protected route.
 - **FR-010**: System MUST allow Admin users to view a list of all registered users including their names, emails, and roles.
-- **FR-011**: System MUST allow Admin users to promote any Submitter to Admin role; the change MUST take effect immediately.
+- **FR-011**: System MUST allow Admin users to promote any Submitter to Admin role; the role change MUST be persisted immediately in the database (visible in the user list at once). The promoted user's Admin route access takes effect on their next login; the JWT role claim is trusted and existing sessions are not invalidated by a promotion.
 - **FR-012**: System MUST deny Submitter users access to the user management area.
 - **FR-013**: System MUST validate all registration inputs (non-empty name, valid email format, minimum password length) and display field-level error messages for invalid inputs.
 
@@ -109,7 +110,7 @@ An Admin user can view a list of all registered portal users, including each use
 
 - **User**: Represents a registered portal employee. Key attributes: unique identifier, full name, email address (unique), hashed password, role (Admin or Submitter), Privacy Policy acceptance status, registration timestamp.
 - **Role**: Enumeration of permission levels. Values: `Admin` (can manage users and access all portal features) and `Submitter` (can access standard portal features).
-- **Session**: Represents an authenticated user's active access token. Key attributes: token value, associated user, expiry time. Invalidated on logout or expiry.
+- **Session**: Represents an authenticated user's active access token. Stored server-side in a `sessions` table. Key attributes: token value (JWT), associated user (foreign key), expiry timestamp, created-at timestamp. Delivered to the client via an httpOnly SameSite=Lax cookie. Invalidated on logout (row deleted) or expiry.
 
 ## Success Criteria *(mandatory)*
 
@@ -133,3 +134,14 @@ An Admin user can view a list of all registered portal users, including each use
 - There is no "forgot password" or email-based password reset flow in this release.
 - The user management page (FR-010, FR-011) is accessible only to Admins; no other user administration features (delete, suspend) are in scope.
 - Concurrent first-registration conflicts are handled by the persistence layer ensuring atomicity; only one user can ever hold the "first registered" distinction.
+- Multiple concurrent sessions per user are permitted; each login creates a new session row. Logout invalidates only the current session (the one matching the cookie presented), not all sessions for that user.
+
+## Clarifications
+
+### Session 2026-05-12
+
+- Q: Where should the JWT be stored on the client and how should logout invalidation be implemented? → A: httpOnly cookie + server-side session table (Option A). JWT delivered via httpOnly SameSite=Lax cookie; active sessions persisted in a SQLite `sessions` table; logout deletes the row for true immediate invalidation.
+- Q: Should a user be able to be logged in from multiple devices/browsers simultaneously? → A: Yes, multiple concurrent sessions allowed (Option A). Each login creates a new `sessions` row; logout deletes only the current session row.
+- Q: When a Submitter is promoted to Admin, when does the promoted user gain Admin route access? → A: On re-login (Option B). Role is persisted in DB immediately (visible in user list); JWT role claim is trusted for route authorization; existing sessions continue as Submitter until the user logs out and back in.
+- Q: Should the login endpoint be rate-limited against brute-force attempts? → A: No rate limiting for MVP (Option B). Portal is internal/employee-only; brute-force protection deferred to a future security hardening feature.
+- Q: How should expired sessions be enforced and cleaned up from the `sessions` table? → A: Lazy expiry check on each request (Option A). Middleware validates `expiry_time > now` per request and deletes the row on detection; no background cleanup job for MVP.
