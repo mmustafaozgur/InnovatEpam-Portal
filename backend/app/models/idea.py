@@ -20,6 +20,14 @@ class Idea(Base):
     attachment_mime_type = Column(String, nullable=True)
     attachment_size = Column(Integer, nullable=True)
 
+    # Evaluation columns (FR-001 to FR-013)
+    evaluation_status = Column(
+        String, nullable=False, default="submitted", server_default="submitted"
+    )
+    evaluation_comment = Column(String, nullable=True)
+    evaluated_at = Column(String, nullable=True)
+    assigned_admin_id = Column(String, nullable=True)
+
     __table_args__ = (
         CheckConstraint(
             "category IN ('process_improvement','technology','cost_saving','other')",
@@ -31,6 +39,11 @@ class Idea(Base):
             "(attachment_filename IS NULL) = (attachment_stored_name IS NULL)",
             name="ck_ideas_attachment_consistency",
         ),
+        CheckConstraint(
+            "evaluation_status IN ('submitted','under_review','accepted','rejected')",
+            name="ck_ideas_evaluation_status",
+        ),
         Index("idx_ideas_submitted_at", "submitted_at"),
         Index("idx_ideas_submitter_id", "submitter_id"),
+        Index("idx_ideas_evaluation_status", "evaluation_status"),
     )

@@ -3,9 +3,10 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Lightbulb } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { listIdeas } from '@/api/ideas'
-import type { IdeaListResponse } from '@/types/ideas'
+import type { IdeaListResponse, EvaluationStatus } from '@/types/ideas'
 import { IdeasTableSkeleton } from '@/components/ideas/IdeasTableSkeleton'
 import { IdeasTable } from '@/components/ideas/IdeasTable'
+import { StatusFilter } from '@/components/ideas/StatusFilter'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 
@@ -14,16 +15,18 @@ export default function IdeasPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const mine = searchParams.get('mine') === '1'
   const page = parseInt(searchParams.get('page') ?? '1', 10)
+  const status = (searchParams.get('status') as EvaluationStatus | null) ?? undefined
 
   const [data, setData] = useState<IdeaListResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     setIsLoading(true)
-    listIdeas(page, 20, mine)
-      .then(setData)
-      .finally(() => setIsLoading(false))
-  }, [page, mine])
+    const req = status !== undefined
+      ? listIdeas(page, 20, mine, status)
+      : listIdeas(page, 20, mine)
+    req.then(setData).finally(() => setIsLoading(false))
+  }, [page, mine, status])
 
   const handleMineChange = (checked: boolean | 'indeterminate') => {
     const next = new URLSearchParams(searchParams)
@@ -31,6 +34,17 @@ export default function IdeasPage() {
       next.set('mine', '1')
     } else {
       next.delete('mine')
+    }
+    next.set('page', '1')
+    setSearchParams(next)
+  }
+
+  const handleStatusChange = (newStatus: EvaluationStatus | undefined) => {
+    const next = new URLSearchParams(searchParams)
+    if (newStatus) {
+      next.set('status', newStatus)
+    } else {
+      next.delete('status')
     }
     next.set('page', '1')
     setSearchParams(next)
@@ -52,21 +66,24 @@ export default function IdeasPage() {
     <div className="px-6 py-8">
       <h1 className="font-heading font-semibold text-xl text-primary mb-6">Ideas</h1>
 
-      {user?.role === 'submitter' && (
-        <div className="flex items-center justify-end gap-2 mb-4">
-          <label
-            htmlFor="mine-filter"
-            className="text-sm font-medium text-slate-600 cursor-pointer select-none"
-          >
-            My Ideas
-          </label>
-          <Checkbox
-            id="mine-filter"
-            checked={mine}
-            onCheckedChange={handleMineChange}
-          />
-        </div>
-      )}
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <StatusFilter value={status} onChange={handleStatusChange} />
+        {user?.role === 'submitter' && (
+          <div className="flex items-center gap-2">
+            <label
+              htmlFor="mine-filter"
+              className="text-sm font-medium text-slate-600 cursor-pointer select-none"
+            >
+              My Ideas
+            </label>
+            <Checkbox
+              id="mine-filter"
+              checked={mine}
+              onCheckedChange={handleMineChange}
+            />
+          </div>
+        )}
+      </div>
 
       {isLoading ? (
         <IdeasTableSkeleton />

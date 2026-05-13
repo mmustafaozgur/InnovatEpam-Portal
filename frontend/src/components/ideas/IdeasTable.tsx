@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/table'
 import type { IdeaSummaryResponse } from '@/types/ideas'
 import { CategoryBadge } from './CategoryBadge'
+import { EvaluationStatusBadge } from './EvaluationStatusBadge'
 
 export function IdeasTable({ ideas }: { ideas: IdeaSummaryResponse[] }) {
   return (
@@ -27,6 +28,9 @@ export function IdeasTable({ ideas }: { ideas: IdeaSummaryResponse[] }) {
             </TableHead>
             <TableHead className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide w-1/5">
               Date
+            </TableHead>
+            <TableHead className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide w-1/5">
+              Status
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -52,6 +56,11 @@ export function IdeasTable({ ideas }: { ideas: IdeaSummaryResponse[] }) {
               </TableCell>
               <TableCell className="px-4 py-3 text-sm text-slate-700">
                 {idea.submitted_at.slice(0, 10)}
+              </TableCell>
+              <TableCell className="px-4 py-3">
+                {idea.evaluation_status && (
+                  <EvaluationStatusBadge status={idea.evaluation_status} />
+                )}
               </TableCell>
             </TableRow>
           ))}

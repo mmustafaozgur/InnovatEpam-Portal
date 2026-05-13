@@ -20,9 +20,9 @@
 
 **Purpose**: Migration script, ADR, and design system gate — must complete before any feature work.
 
-- [ ] T001 Create migration script `backend/scripts/migrate_eval.py` that issues `ALTER TABLE ideas ADD COLUMN` for evaluation_status, evaluation_comment, evaluated_at, assigned_admin_id using `PRAGMA table_info` guard and creates `idx_ideas_evaluation_status` index (see data-model.md §5 for exact script)
-- [ ] T002 [P] Create ADR `docs/adr/009-evaluation-inline-storage.md` documenting the inline-column decision vs a separate evaluations table (see research.md §8)
-- [ ] T003 ⚠️ **DESIGN SYSTEM GATE** — Run `/ui-ux-pro-max` to register three new components in `design-system/innovatepam/MASTER.md`: EvaluationStatusBadge (4 color variants: submitted=slate, under_review=blue, accepted=green, rejected=red), EvaluationForm (admin panel with locked status select + comment textarea with 1,000-char counter), StatusFilter (dropdown in filter bar alongside "My Ideas" toggle). **No frontend UI task (T015–T017, T024) may begin until MASTER.md is updated.**
+- [X] T001 Create migration script `backend/scripts/migrate_eval.py` that issues `ALTER TABLE ideas ADD COLUMN` for evaluation_status, evaluation_comment, evaluated_at, assigned_admin_id using `PRAGMA table_info` guard and creates `idx_ideas_evaluation_status` index (see data-model.md §5 for exact script)
+- [X] T002 [P] Create ADR `docs/adr/009-evaluation-inline-storage.md` documenting the inline-column decision vs a separate evaluations table (see research.md §8)
+- [X] T003 ⚠️ **DESIGN SYSTEM GATE** — Run `/ui-ux-pro-max` to register three new components in `design-system/innovatepam/MASTER.md`: EvaluationStatusBadge (4 color variants: submitted=slate, under_review=blue, accepted=green, rejected=red), EvaluationForm (admin panel with locked status select + comment textarea with 1,000-char counter), StatusFilter (dropdown in filter bar alongside "My Ideas" toggle). **No frontend UI task (T015–T017, T024) may begin until MASTER.md is updated.**
 
 **Checkpoint**: Migration script ready; ADR filed; MASTER.md amended — feature implementation can begin.
 
@@ -34,10 +34,10 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T004 [P] Add four evaluation columns (`evaluation_status`, `evaluation_comment`, `evaluated_at`, `assigned_admin_id`), `CheckConstraint("evaluation_status IN ('submitted','under_review','accepted','rejected')", name="ck_ideas_evaluation_status")`, and `Index("idx_ideas_evaluation_status", "evaluation_status")` to the `Idea` model in `backend/app/models/idea.py` (see data-model.md §1.3)
-- [ ] T005 [P] Add `EvaluationStatus = Literal["submitted","under_review","accepted","rejected"]`, `EvaluateIdeaRequest(status, comment)`, and `EvaluationInfo(status, comment, evaluated_at, assigned_admin_id)` Pydantic models to `backend/app/schemas/ideas.py` (see data-model.md §2.1)
-- [ ] T006 Update `IdeaDetailResponse` (add `evaluation: EvaluationInfo` field) and `IdeaSummaryResponse` (add `evaluation_status: EvaluationStatus` field) in `backend/app/schemas/ideas.py` — depends on T005 (see data-model.md §2.2)
-- [ ] T007 [P] Add `EvaluationStatus` union type, `EvaluationInfo` interface, `EvaluateIdeaRequest` interface to `frontend/src/types/ideas.ts`; update `IdeaDetailResponse` (add `evaluation: EvaluationInfo`) and `IdeaSummaryResponse` (add `evaluation_status: EvaluationStatus`) interfaces (see data-model.md §4)
+- [X] T004 [P] Add four evaluation columns (`evaluation_status`, `evaluation_comment`, `evaluated_at`, `assigned_admin_id`), `CheckConstraint("evaluation_status IN ('submitted','under_review','accepted','rejected')", name="ck_ideas_evaluation_status")`, and `Index("idx_ideas_evaluation_status", "evaluation_status")` to the `Idea` model in `backend/app/models/idea.py` (see data-model.md §1.3)
+- [X] T005 [P] Add `EvaluationStatus = Literal["submitted","under_review","accepted","rejected"]`, `EvaluateIdeaRequest(status, comment)`, and `EvaluationInfo(status, comment, evaluated_at, assigned_admin_id)` Pydantic models to `backend/app/schemas/ideas.py` (see data-model.md §2.1)
+- [X] T006 Update `IdeaDetailResponse` (add `evaluation: EvaluationInfo` field) and `IdeaSummaryResponse` (add `evaluation_status: EvaluationStatus` field) in `backend/app/schemas/ideas.py` — depends on T005 (see data-model.md §2.2)
+- [X] T007 [P] Add `EvaluationStatus` union type, `EvaluationInfo` interface, `EvaluateIdeaRequest` interface to `frontend/src/types/ideas.ts`; update `IdeaDetailResponse` (add `evaluation: EvaluationInfo`) and `IdeaSummaryResponse` (add `evaluation_status: EvaluationStatus`) interfaces (see data-model.md §4)
 
 **Checkpoint**: Schema + types are complete — user story implementation can now begin.
 
@@ -51,13 +51,13 @@
 
 ### Tests for User Story 1 ⚠️ Write FIRST — confirm RED before implementing
 
-- [ ] T008 [P] [US1] Write unit tests U-01 to U-10 for `evaluate_idea()` (state machine transitions, lock enforcement, admin assignment, comment-only update, non-admin rejection) in `backend/tests/unit/test_idea_service.py`; run `pytest backend/tests/unit/test_idea_service.py -v` and **confirm all 10 tests FAIL**
-- [ ] T009 [P] [US1] Write integration tests I-01 to I-06 and I-12 for `PATCH /ideas/{id}/evaluate` (unauthenticated 401, submitter 403, valid transition 200, invalid transition 400, locked 409, non-assigned admin 403, comment >1,000 chars → 422) in `backend/tests/integration/test_idea_routes.py`; run `pytest backend/tests/integration/test_idea_routes.py -v` and **confirm all 7 tests FAIL**
+- [X] T008 [P] [US1] Write unit tests U-01 to U-10 for `evaluate_idea()` (state machine transitions, lock enforcement, admin assignment, comment-only update, non-admin rejection) in `backend/tests/unit/test_idea_service.py`; run `pytest backend/tests/unit/test_idea_service.py -v` and **confirm all 10 tests FAIL**
+- [X] T009 [P] [US1] Write integration tests I-01 to I-06 and I-12 for `PATCH /ideas/{id}/evaluate` (unauthenticated 401, submitter 403, valid transition 200, invalid transition 400, locked 409, non-assigned admin 403, comment >1,000 chars → 422) in `backend/tests/integration/test_idea_routes.py`; run `pytest backend/tests/integration/test_idea_routes.py -v` and **confirm all 7 tests FAIL**
 
 ### Implementation for User Story 1
 
-- [ ] T010 [US1] Implement `evaluate_idea(db, idea_id, acting_admin, new_status, comment)` in `backend/app/services/idea_service.py` with: ALLOWED_TRANSITIONS dict, 404/403/400/409 guards in the exact order from data-model.md §3.2, `assigned_admin_id` set on first under_review transition, `evaluated_at = utc_now_iso()`, single atomic `db.commit()` returning `IdeaDetailResponse` with visibility applied (see data-model.md §3.1–3.2 and research.md §3–4) — **Visibility note**: the caller is always an admin here (route enforces admin JWT), so all evaluation fields are visible; if `build_evaluation_info()` (T014) is already implemented call it with `acting_admin`; otherwise return the full evaluation fields directly — T014 introduces the canonical helper and will be the single authority thereafter
-- [ ] T011 [US1] Add `PATCH /ideas/{idea_id}/evaluate` route to `backend/app/api/routes/ideas.py` that requires admin JWT, parses `EvaluateIdeaRequest` body, calls `idea_service.evaluate_idea()`, and returns 200 `IdeaDetailResponse` (see contracts/evaluate-idea.md §1)
+- [X] T010 [US1] Implement `evaluate_idea(db, idea_id, acting_admin, new_status, comment)` in `backend/app/services/idea_service.py` with: ALLOWED_TRANSITIONS dict, 404/403/400/409 guards in the exact order from data-model.md §3.2, `assigned_admin_id` set on first under_review transition, `evaluated_at = utc_now_iso()`, single atomic `db.commit()` returning `IdeaDetailResponse` with visibility applied (see data-model.md §3.1–3.2 and research.md §3–4) — **Visibility note**: the caller is always an admin here (route enforces admin JWT), so all evaluation fields are visible; if `build_evaluation_info()` (T014) is already implemented call it with `acting_admin`; otherwise return the full evaluation fields directly — T014 introduces the canonical helper and will be the single authority thereafter
+- [X] T011 [US1] Add `PATCH /ideas/{idea_id}/evaluate` route to `backend/app/api/routes/ideas.py` that requires admin JWT, parses `EvaluateIdeaRequest` body, calls `idea_service.evaluate_idea()`, and returns 200 `IdeaDetailResponse` (see contracts/evaluate-idea.md §1)
 
 **Checkpoint**: User Story 1 fully functional — `pytest backend/tests/unit/test_idea_service.py backend/tests/integration/test_idea_routes.py -v` should show U-01..U-10 and I-01..I-06 GREEN.
 
@@ -71,18 +71,18 @@
 
 ### Tests for User Story 2 ⚠️ Write FIRST — confirm RED before implementing
 
-- [ ] T012 [P] [US2] Write unit tests U-11 to U-13 for `build_evaluation_info()` and updated `get_idea()` visibility rules (submitter sees under_review with comment=None, admin sees comment, submitter sees accepted with comment) in `backend/tests/unit/test_idea_service.py`; **confirm 3 tests FAIL**
-- [ ] T013 [P] [US2] Write integration tests I-10 to I-11 for `GET /ideas/{id}` visibility (submitter under_review → comment absent; admin under_review → comment present) in `backend/tests/integration/test_idea_routes.py`; **confirm 2 tests FAIL**
-- [ ] T030 [P] [US2] Write Vitest + RTL tests for: **EvaluationStatusBadge** (renders correct label and Tailwind color class for each of the 4 status values), **EvaluationForm** (State A — status selectable with only "Under Review" available; State B — status field disabled, comment textarea editable; 1,000-char counter decrements; submit fires the `onSubmit` prop), and **IdeaDetailPage** comment-visibility (submitter + `under_review` → comment block absent from DOM; submitter + `accepted` → comment block present; admin + `under_review` → comment block present) in `frontend/src/components/ideas/EvaluationStatusBadge.test.tsx`, `frontend/src/components/ideas/EvaluationForm.test.tsx`, and `frontend/src/pages/IdeaDetailPage.test.tsx`; run `npm test` and **confirm all tests FAIL**
+- [X] T012 [P] [US2] Write unit tests U-11 to U-13 for `build_evaluation_info()` and updated `get_idea()` visibility rules (submitter sees under_review with comment=None, admin sees comment, submitter sees accepted with comment) in `backend/tests/unit/test_idea_service.py`; **confirm 3 tests FAIL**
+- [X] T013 [P] [US2] Write integration tests I-10 to I-11 for `GET /ideas/{id}` visibility (submitter under_review → comment absent; admin under_review → comment present) in `backend/tests/integration/test_idea_routes.py`; **confirm 2 tests FAIL**
+- [X] T030 [P] [US2] Write Vitest + RTL tests for: **EvaluationStatusBadge** (renders correct label and Tailwind color class for each of the 4 status values), **EvaluationForm** (State A — status selectable with only "Under Review" available; State B — status field disabled, comment textarea editable; 1,000-char counter decrements; submit fires the `onSubmit` prop), and **IdeaDetailPage** comment-visibility (submitter + `under_review` → comment block absent from DOM; submitter + `accepted` → comment block present; admin + `under_review` → comment block present) in `frontend/src/components/ideas/EvaluationStatusBadge.test.tsx`, `frontend/src/components/ideas/EvaluationForm.test.tsx`, and `frontend/src/pages/IdeaDetailPage.test.tsx`; run `npm test` and **confirm all tests FAIL**
 
 ### Implementation for User Story 2
 
-- [ ] T014 [US2] Implement `build_evaluation_info(idea, caller)` with the visibility rule table from data-model.md §3.3 and research.md §5; update `get_idea()` in `backend/app/services/idea_service.py` to call `build_evaluation_info()` before returning `IdeaDetailResponse` — also ensure `IdeaSummaryResponse` items in `list_ideas()` include `evaluation_status` from the DB row
-- [ ] T015 [P] [US2] Create `EvaluationStatusBadge` React component (4 color variants per MASTER.md: submitted=slate, under_review=blue, accepted=green, rejected=red) in `frontend/src/components/ideas/EvaluationStatusBadge.tsx` — **requires T003 complete, T030 RED confirmed**
-- [ ] T016 [P] [US2] Create `EvaluationForm` React component (admin-only panel: **State A** — idea in `submitted`, status `<select>` shows only "Under Review" pre-selected (only valid next transition); **State B** — idea in `under_review`, status field is read-only/disabled, only `<textarea>` with 1,000-char counter and submit button editable) in `frontend/src/components/ideas/EvaluationForm.tsx` — **requires T003 complete, T030 RED confirmed**
-- [ ] T017 [P] [US2] Add `evaluateIdea(ideaId: string, payload: EvaluateIdeaRequest): Promise<IdeaDetailResponse>` function calling `PATCH /ideas/{id}/evaluate` in `frontend/src/api/ideas.ts`
-- [ ] T018 [US2] Update `frontend/src/pages/IdeaDetailPage.tsx` to: render `EvaluationStatusBadge` (all users), render `EvaluationForm` (admin only), display evaluation comment block when `evaluation.comment` is non-null (per visibility rules from contract); depends on T015, T016, T017, T030
-- [ ] T019 [US2] Update `frontend/src/pages/IdeasPage.tsx` to render `EvaluationStatusBadge` on each idea list row using `IdeaSummaryResponse.evaluation_status`; depends on T015
+- [X] T014 [US2] Implement `build_evaluation_info(idea, caller)` with the visibility rule table from data-model.md §3.3 and research.md §5; update `get_idea()` in `backend/app/services/idea_service.py` to call `build_evaluation_info()` before returning `IdeaDetailResponse` — also ensure `IdeaSummaryResponse` items in `list_ideas()` include `evaluation_status` from the DB row
+- [X] T015 [P] [US2] Create `EvaluationStatusBadge` React component (4 color variants per MASTER.md: submitted=slate, under_review=blue, accepted=green, rejected=red) in `frontend/src/components/ideas/EvaluationStatusBadge.tsx` — **requires T003 complete, T030 RED confirmed**
+- [X] T016 [P] [US2] Create `EvaluationForm` React component (admin-only panel: **State A** — idea in `submitted`, status `<select>` shows only "Under Review" pre-selected (only valid next transition); **State B** — idea in `under_review`, status field is read-only/disabled, only `<textarea>` with 1,000-char counter and submit button editable) in `frontend/src/components/ideas/EvaluationForm.tsx` — **requires T003 complete, T030 RED confirmed**
+- [X] T017 [P] [US2] Add `evaluateIdea(ideaId: string, payload: EvaluateIdeaRequest): Promise<IdeaDetailResponse>` function calling `PATCH /ideas/{id}/evaluate` in `frontend/src/api/ideas.ts`
+- [X] T018 [US2] Update `frontend/src/pages/IdeaDetailPage.tsx` to: render `EvaluationStatusBadge` (all users), render `EvaluationForm` (admin only), display evaluation comment block when `evaluation.comment` is non-null (per visibility rules from contract); depends on T015, T016, T017, T030
+- [X] T019 [US2] Update `frontend/src/pages/IdeasPage.tsx` to render `EvaluationStatusBadge` on each idea list row using `IdeaSummaryResponse.evaluation_status`; depends on T015
 
 **Checkpoint**: User Story 2 fully functional — all 4 statuses show correct badges on list + detail; comment is hidden from submitters while under_review; admin sees comment. T012, T013, T030 tests GREEN.
 
@@ -96,16 +96,16 @@
 
 ### Tests for User Story 3 ⚠️ Write FIRST — confirm RED before implementing
 
-- [ ] T020 [P] [US3] Write unit tests U-14 to U-15 for `list_ideas()` `status_filter` parameter (filter returns only matching ideas; AND combination with submitter_id_filter) in `backend/tests/unit/test_idea_service.py`; **confirm 2 tests FAIL**
-- [ ] T021 [P] [US3] Write integration tests I-07 to I-09 for `GET /ideas?status=` (submitted filter, accepted+mine AND, invalid status → 422) in `backend/tests/integration/test_idea_routes.py`; **confirm 3 tests FAIL**
-- [ ] T031 [P] [US3] Write Vitest + RTL tests for: **StatusFilter** (renders 5 options: "All statuses", "Submitted", "Under Review", "Accepted", "Rejected"; `onChange` fires with the correct status string, or `undefined` when "All statuses" is selected) and **IdeasPage** status-filter integration (selecting a status from `StatusFilter` passes `status` param to the mocked `listIdeas`; "My Ideas" toggle + status filter simultaneously → both params present in the `listIdeas` mock call) in `frontend/src/components/ideas/StatusFilter.test.tsx` and `frontend/src/pages/IdeasPage.test.tsx`; run `npm test` and **confirm all tests FAIL**
+- [X] T020 [P] [US3] Write unit tests U-14 to U-15 for `list_ideas()` `status_filter` parameter (filter returns only matching ideas; AND combination with submitter_id_filter) in `backend/tests/unit/test_idea_service.py`; **confirm 2 tests FAIL**
+- [X] T021 [P] [US3] Write integration tests I-07 to I-09 for `GET /ideas?status=` (submitted filter, accepted+mine AND, invalid status → 422) in `backend/tests/integration/test_idea_routes.py`; **confirm 3 tests FAIL**
+- [X] T031 [P] [US3] Write Vitest + RTL tests for: **StatusFilter** (renders 5 options: "All statuses", "Submitted", "Under Review", "Accepted", "Rejected"; `onChange` fires with the correct status string, or `undefined` when "All statuses" is selected) and **IdeasPage** status-filter integration (selecting a status from `StatusFilter` passes `status` param to the mocked `listIdeas`; "My Ideas" toggle + status filter simultaneously → both params present in the `listIdeas` mock call) in `frontend/src/components/ideas/StatusFilter.test.tsx` and `frontend/src/pages/IdeasPage.test.tsx`; run `npm test` and **confirm all tests FAIL**
 
 ### Implementation for User Story 3
 
-- [ ] T022 [US3] Update `list_ideas(db, caller, page, limit, submitter_id_filter, status_filter)` signature in `backend/app/services/idea_service.py` to add optional `status_filter: Optional[EvaluationStatus] = None` and apply `WHERE evaluation_status = :status` clause when provided (see data-model.md §3.4)
-- [ ] T023 [US3] Update `GET /ideas` route handler in `backend/app/api/routes/ideas.py` to accept optional `status: Optional[EvaluationStatus] = Query(None)` query parameter and pass it as `status_filter` to `list_ideas()` (see contracts/evaluate-idea.md §2)
-- [ ] T024 [US3] Create `StatusFilter` dropdown component (`<select>` with options: All statuses, Submitted, Under Review, Accepted, Rejected) in `frontend/src/components/ideas/StatusFilter.tsx` — **requires T003 complete, T031 RED confirmed**
-- [ ] T025 [US3] Update `listIdeas()` in `frontend/src/api/ideas.ts` to accept optional `status?: EvaluationStatus` param and append `?status=…` to the request URL; update `frontend/src/pages/IdeasPage.tsx` to render `StatusFilter` in the filter bar alongside the existing "My Ideas" toggle and pass status state to `listIdeas()`; depends on T024, T019, T031
+- [X] T022 [US3] Update `list_ideas(db, caller, page, limit, submitter_id_filter, status_filter)` signature in `backend/app/services/idea_service.py` to add optional `status_filter: Optional[EvaluationStatus] = None` and apply `WHERE evaluation_status = :status` clause when provided (see data-model.md §3.4)
+- [X] T023 [US3] Update `GET /ideas` route handler in `backend/app/api/routes/ideas.py` to accept optional `status: Optional[EvaluationStatus] = Query(None)` query parameter and pass it as `status_filter` to `list_ideas()` (see contracts/evaluate-idea.md §2)
+- [X] T024 [US3] Create `StatusFilter` dropdown component (`<select>` with options: All statuses, Submitted, Under Review, Accepted, Rejected) in `frontend/src/components/ideas/StatusFilter.tsx` — **requires T003 complete, T031 RED confirmed**
+- [X] T025 [US3] Update `listIdeas()` in `frontend/src/api/ideas.ts` to accept optional `status?: EvaluationStatus` param and append `?status=…` to the request URL; update `frontend/src/pages/IdeasPage.tsx` to render `StatusFilter` in the filter bar alongside the existing "My Ideas" toggle and pass status state to `listIdeas()`; depends on T024, T019, T031
 
 **Checkpoint**: User Story 3 fully functional — status dropdown in filter bar; AND combination with "My Ideas" works; empty state shown when no match. T020, T021, T031 tests GREEN.
 
@@ -115,9 +115,9 @@
 
 **Purpose**: Validation runs and final quality checks across all user stories.
 
-- [ ] T026 [P] Run full backend evaluation test suite and confirm all 27 tests pass (15 unit: U-01..U-15 · 12 integration: I-01..I-12): `pytest backend/tests/unit/test_idea_service.py backend/tests/integration/test_idea_routes.py -v`
-- [ ] T027 [P] Run frontend test suite and confirm all new tests GREEN (T030: EvaluationStatusBadge, EvaluationForm, IdeaDetailPage visibility; T031: StatusFilter, IdeasPage filter integration) and no regressions in existing tests: `npm test` in `frontend/`
-- [ ] T028 [P] Verify migration script idempotency by running `python backend/scripts/migrate_eval.py` twice on an existing `backend/innovatepam.db`; confirm second run prints "Skipped (exists)" for all columns and exits cleanly
+- [X] T026 [P] Run full backend evaluation test suite and confirm all 27 tests pass (15 unit: U-01..U-15 · 12 integration: I-01..I-12): `pytest backend/tests/unit/test_idea_service.py backend/tests/integration/test_idea_routes.py -v`
+- [X] T027 [P] Run frontend test suite and confirm all new tests GREEN (T030: EvaluationStatusBadge, EvaluationForm, IdeaDetailPage visibility; T031: StatusFilter, IdeasPage filter integration) and no regressions in existing tests: `npm test` in `frontend/`
+- [X] T028 [P] Verify migration script idempotency by running `python backend/scripts/migrate_eval.py` twice on an existing `backend/innovatepam.db`; confirm second run prints "Skipped (exists)" for all columns and exits cleanly
 - [ ] T029 Execute the full quickstart.md manual validation: sections 6.1 (Happy Path lifecycle), 6.2 (Status Filter + AND with "My Ideas"), 6.3 (Lock Enforcement via curl), 6.4 (Non-Assigned Admin Blocked)
 
 ---

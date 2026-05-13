@@ -1545,3 +1545,233 @@ export function RoleRestrictionNotice() {
 
 **Do NOT** use `bg-amber-50 / border-amber-200` here — that palette is committed to
 session-expiry warnings. Blue is strictly for informational role/permission notices.
+
+---
+
+## Evaluation Workflow Components (Feature 004-evaluation-workflow)
+
+> These sections govern all UI in `004-evaluation-workflow`. They extend the rules above —
+> global rules still apply unless explicitly overridden here.
+
+---
+
+### EvaluationStatusBadge
+
+Colored pill badge displaying an idea's evaluation status. Four variants — each maps a
+status value to a distinct Tailwind color so reviewers can scan status at a glance.
+
+| Status | Background | Text | Label |
+|--------|-----------|------|-------|
+| `submitted` | `bg-slate-100` | `text-slate-600` | Submitted |
+| `under_review` | `bg-blue-100` | `text-blue-700` | Under Review |
+| `accepted` | `bg-green-100` | `text-green-700` | Accepted |
+| `rejected` | `bg-red-100` | `text-red-700` | Rejected |
+
+```
+// Base pill classes (all variants)
+inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+```
+
+**TSX component:**
+
+```tsx
+import type { EvaluationStatus } from '@/types/ideas'
+
+const STATUS_CONFIG: Record<EvaluationStatus, { label: string; classes: string }> = {
+  submitted:    { label: 'Submitted',    classes: 'bg-slate-100 text-slate-600' },
+  under_review: { label: 'Under Review', classes: 'bg-blue-100 text-blue-700' },
+  accepted:     { label: 'Accepted',     classes: 'bg-green-100 text-green-700' },
+  rejected:     { label: 'Rejected',     classes: 'bg-red-100 text-red-700' },
+}
+
+export function EvaluationStatusBadge({ status }: { status: EvaluationStatus }) {
+  const { label, classes } = STATUS_CONFIG[status]
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${classes}`}>
+      {label}
+    </span>
+  )
+}
+```
+
+**Do NOT** reuse `bg-primary/10 text-primary` (reserved for Admin role badge in UserTable).
+
+---
+
+### EvaluationForm
+
+Admin-only panel rendered on the Idea Detail page when the current user is an admin.
+Two states depending on the idea's current `evaluation_status`:
+
+**State A** — idea is `submitted`: status `<select>` is enabled showing only "Under Review"
+pre-selected (the only valid next transition). Comment textarea is enabled. Submit fires.
+
+**State B** — idea is `under_review` (already picked up): status `<select>` is disabled
+(read-only showing current status). Only the comment textarea + submit button are active.
+
+```
+// Panel wrapper
+mt-10 pt-6 border-t border-border
+
+// Panel heading
+text-sm font-semibold text-slate-700 mb-4
+
+// Form fields stack
+flex flex-col gap-4
+
+// Select trigger (State A — enabled)
+w-full px-4 py-2 border border-border rounded-lg text-sm transition-colors duration-200
+focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20
+
+// Select trigger (State B — disabled)
+w-full px-4 py-2 border border-border rounded-lg text-sm
+bg-slate-50 text-slate-400 cursor-not-allowed
+
+// Comment textarea
+w-full px-4 py-3 border border-border rounded-lg text-sm resize-none
+focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20
+transition-colors duration-200
+
+// Character counter (reuse CharacterCounter component, max=1000)
+text-xs text-right mt-1 select-none (text-red-500 when ≤ 100 chars remaining)
+
+// Submit button (Primary / CTA)
+bg-cta text-white px-6 py-2 rounded-lg font-semibold text-sm
+hover:opacity-90 hover:-translate-y-px transition-all duration-200 cursor-pointer
+```
+
+**TSX skeleton:**
+
+```tsx
+interface EvaluationFormProps {
+  idea: IdeaDetailResponse
+  onSubmit: (payload: EvaluateIdeaRequest) => void
+}
+
+export function EvaluationForm({ idea, onSubmit }: EvaluationFormProps) {
+  const isStateA = idea.evaluation.status === 'submitted'
+  const [comment, setComment] = useState(idea.evaluation.comment ?? '')
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const status: EvaluationStatus = isStateA ? 'under_review' : idea.evaluation.status
+    onSubmit({ status, comment: comment || undefined })
+  }
+
+  return (
+    <div className="mt-10 pt-6 border-t border-border">
+      <p className="text-sm font-semibold text-slate-700 mb-4">Evaluation</p>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <div>
+          <label className="text-xs font-medium text-slate-500 mb-1 block">Status</label>
+          <select
+            value={isStateA ? 'under_review' : idea.evaluation.status}
+            disabled={!isStateA}
+            className={isStateA
+              ? "w-full px-4 py-2 border border-border rounded-lg text-sm transition-colors duration-200 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              : "w-full px-4 py-2 border border-border rounded-lg text-sm bg-slate-50 text-slate-400 cursor-not-allowed"}
+          >
+            {isStateA
+              ? <option value="under_review">Under Review</option>
+              : (
+                <>
+                  <option value="under_review">Under Review</option>
+                  <option value="accepted">Accepted</option>
+                  <option value="rejected">Rejected</option>
+                </>
+              )}
+          </select>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-slate-500 mb-1 block">
+            Comment <span className="text-slate-400 font-normal">(optional)</span>
+          </label>
+          <textarea
+            value={comment}
+            onChange={e => setComment(e.target.value)}
+            maxLength={1000}
+            rows={4}
+            className="w-full px-4 py-3 border border-border rounded-lg text-sm resize-none
+                       focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20
+                       transition-colors duration-200"
+          />
+          <CharacterCounter current={comment.length} max={1000} />
+        </div>
+        <button type="submit"
+          className="self-start bg-cta text-white px-6 py-2 rounded-lg font-semibold text-sm
+                     hover:opacity-90 hover:-translate-y-px transition-all duration-200 cursor-pointer">
+          Save Evaluation
+        </button>
+      </form>
+    </div>
+  )
+}
+```
+
+**State B availability**: `accepted` and `rejected` are terminal states — `EvaluationForm`
+should NOT be rendered for locked ideas (the parent page handles this guard).
+
+---
+
+### StatusFilter
+
+Dropdown in the Ideas List filter bar. Placed to the left of the "My Ideas" toggle (submitter
+role only). Visible to all authenticated users. Single-select only.
+
+**Options**: All statuses · Submitted · Under Review · Accepted · Rejected
+
+```
+// Wrapper (sits in the filter bar row alongside "My Ideas" toggle)
+flex items-center gap-2
+
+// Label
+text-sm font-medium text-slate-600
+
+// Select element
+px-3 py-1.5 border border-border rounded-lg text-sm text-slate-700
+focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20
+transition-colors duration-200 cursor-pointer bg-white
+```
+
+**TSX component:**
+
+```tsx
+import type { EvaluationStatus } from '@/types/ideas'
+
+interface StatusFilterProps {
+  value: EvaluationStatus | undefined
+  onChange: (status: EvaluationStatus | undefined) => void
+}
+
+export function StatusFilter({ value, onChange }: StatusFilterProps) {
+  return (
+    <div className="flex items-center gap-2">
+      <label className="text-sm font-medium text-slate-600">Status</label>
+      <select
+        value={value ?? ''}
+        onChange={e => onChange(e.target.value ? (e.target.value as EvaluationStatus) : undefined)}
+        className="px-3 py-1.5 border border-border rounded-lg text-sm text-slate-700
+                   focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20
+                   transition-colors duration-200 cursor-pointer bg-white"
+      >
+        <option value="">All statuses</option>
+        <option value="submitted">Submitted</option>
+        <option value="under_review">Under Review</option>
+        <option value="accepted">Accepted</option>
+        <option value="rejected">Rejected</option>
+      </select>
+    </div>
+  )
+}
+```
+
+**Filter bar layout** (in IdeasPage, above the table):
+
+```
+flex items-center justify-end gap-4 mb-4
+├── <StatusFilter />               (left side of the end-aligned group)
+└── <My Ideas toggle>              (right side — submitter role only)
+```
+
+**AND semantics**: When both filters are active, the API receives both `status=…` and
+`mine=true` query params. The backend applies them as a logical AND.

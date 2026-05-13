@@ -7,6 +7,7 @@ import IdeasPage from '../IdeasPage'
 
 vi.mock('@/api/ideas', () => ({
   listIdeas: vi.fn(),
+  evaluateIdea: vi.fn(),
 }))
 
 import { listIdeas } from '@/api/ideas'
@@ -144,5 +145,59 @@ describe('IdeasPage — mine filter', () => {
     ;(listIdeas as ReturnType<typeof vi.fn>).mockResolvedValueOnce(emptyList)
     renderWithAuth('submitter', '/ideas?mine=1')
     await waitFor(() => expect(screen.getByText(/haven't submitted any ideas/i)).toBeInTheDocument())
+  })
+})
+
+// ---------------------------------------------------------------------------
+// T031 — StatusFilter integration tests
+// ---------------------------------------------------------------------------
+
+describe('IdeasPage — status filter (T031)', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('renders StatusFilter dropdown', async () => {
+    ;(listIdeas as ReturnType<typeof vi.fn>).mockResolvedValueOnce(emptyList)
+    renderWithAuth('submitter')
+    await waitFor(() => expect(listIdeas).toHaveBeenCalled())
+    expect(screen.getByRole('combobox')).toBeInTheDocument()
+  })
+
+  it('changing status filter passes status param to listIdeas', async () => {
+    ;(listIdeas as ReturnType<typeof vi.fn>).mockResolvedValue(emptyList)
+    renderWithAuth('submitter')
+    await waitFor(() => expect(listIdeas).toHaveBeenCalled())
+    const select = screen.getByRole('combobox')
+    fireEvent.change(select, { target: { value: 'accepted' } })
+    await waitFor(() => {
+      expect(listIdeas).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.anything(),
+        'accepted',
+      )
+    })
+  })
+
+  it('mine toggle + status filter simultaneously sends both params to listIdeas', async () => {
+    ;(listIdeas as ReturnType<typeof vi.fn>).mockResolvedValue(emptyList)
+    renderWithAuth('submitter')
+    await waitFor(() => expect(listIdeas).toHaveBeenCalled())
+
+    // Activate mine filter
+    const checkbox = screen.getByLabelText(/my ideas/i)
+    fireEvent.click(checkbox)
+
+    // Then set status filter
+    await waitFor(() => expect(listIdeas).toHaveBeenCalled())
+    const select = screen.getByRole('combobox')
+    fireEvent.change(select, { target: { value: 'submitted' } })
+
+    await waitFor(() => {
+      const calls = (listIdeas as ReturnType<typeof vi.fn>).mock.calls
+      const lastCall = calls[calls.length - 1]
+      // mine=true is the third arg, status is the fourth
+      expect(lastCall[2]).toBe(true)
+      expect(lastCall[3]).toBe('submitted')
+    })
   })
 })
