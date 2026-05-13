@@ -109,11 +109,10 @@ describe('auth-flow integration', () => {
     // Submitter row has promote button
     expect(screen.getByRole('button', { name: /promote to admin/i })).toBeInTheDocument()
 
-    // Admin's own row has no promote button (not submitter, and is self)
+    // Admin's own row is not rendered (current user is filtered out)
     const rows = screen.getAllByRole('row')
     const adminRow = rows.find((r) => r.textContent?.includes(ADMIN.full_name))
-    expect(adminRow).not.toBeUndefined()
-    expect(adminRow!.querySelector('button')).toBeNull()
+    expect(adminRow).toBeUndefined()
   })
 
   it('promote submitter: PATCH /users/:id/promote → role becomes admin', async () => {
