@@ -19,7 +19,7 @@ import { useAuth } from '@/context/AuthContext'
 import { login as loginApi } from '@/api/auth'
 
 const schema = z.object({
-  email: z.string().email('Enter a valid email address'),
+  email: z.string().email('Enter a valid email address').endsWith('@epam.com', 'Only @epam.com emails are allowed'),
   password: z.string().min(1, 'Password is required'),
 })
 

@@ -14,6 +14,13 @@ class RegisterRequest(BaseModel):
             raise ValueError("full_name must not be empty")
         return v
 
+    @field_validator("email")
+    @classmethod
+    def email_must_be_epam(cls, v: str) -> str:
+        if not v.lower().endswith("@epam.com"):
+            raise ValueError("Only @epam.com email addresses are allowed")
+        return v
+
     @field_validator("password")
     @classmethod
     def password_min_length(cls, v: str) -> str:
@@ -25,6 +32,13 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+    @field_validator("email")
+    @classmethod
+    def email_must_be_epam(cls, v: str) -> str:
+        if not v.lower().endswith("@epam.com"):
+            raise ValueError("Only @epam.com email addresses are allowed")
+        return v
 
 
 class UserResponse(BaseModel):

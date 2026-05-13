@@ -21,7 +21,7 @@ import { register as registerApi } from '@/api/auth'
 
 const schema = z.object({
   full_name: z.string().min(1, 'Full name is required'),
-  email: z.string().email('Enter a valid email address'),
+  email: z.string().email('Enter a valid email address').endsWith('@epam.com', 'Only @epam.com emails are allowed'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   privacy_policy_accepted: z
     .boolean()
