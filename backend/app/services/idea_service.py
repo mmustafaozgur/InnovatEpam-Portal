@@ -136,15 +136,24 @@ async def list_ideas(
     db: AsyncSession,
     page: int = 1,
     limit: int = 20,
+    submitter_id_filter: Optional[str] = None,
 ) -> IdeaListResponse:
     offset = (page - 1) * limit
 
-    total_result = await db.execute(select(func.count()).select_from(Idea))
+    base_count_q = select(func.count()).select_from(Idea)
+    base_list_q = (
+        select(Idea, User.full_name.label("submitter_name"))
+        .join(User, User.id == Idea.submitter_id)
+    )
+    if submitter_id_filter is not None:
+        base_count_q = base_count_q.where(Idea.submitter_id == submitter_id_filter)
+        base_list_q = base_list_q.where(Idea.submitter_id == submitter_id_filter)
+
+    total_result = await db.execute(base_count_q)
     total = total_result.scalar_one()
 
     result = await db.execute(
-        select(Idea, User.full_name.label("submitter_name"))
-        .join(User, User.id == Idea.submitter_id)
+        base_list_q
         .order_by(Idea.submitted_at.desc())
         .offset(offset)
         .limit(limit)

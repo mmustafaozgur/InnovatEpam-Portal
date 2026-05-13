@@ -290,3 +290,60 @@ async def test_get_idea_detail_404(async_client, test_db):
 async def test_get_idea_detail_unauthenticated_401(async_client, test_db):
     resp = await async_client.get("/api/v1/ideas/some-id")
     assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# T009 — mine filter integration tests
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_mine_filter_returns_only_submitters_ideas(async_client, test_db):
+    user1 = await create_test_user(test_db, role="submitter")
+    user2 = await create_test_user(test_db, role="submitter")
+    client = await authenticated_client(async_client, test_db, user1)
+    await client.post("/api/v1/ideas", data={"title": "U1 Idea", "description": "d", "category": "technology"})
+    client = await authenticated_client(async_client, test_db, user2)
+    await client.post("/api/v1/ideas", data={"title": "U2 Idea", "description": "d", "category": "other"})
+    client = await authenticated_client(async_client, test_db, user1)
+    resp = await client.get("/api/v1/ideas?mine=true")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["ideas"][0]["submitter_name"] == user1.full_name
+
+
+@pytest.mark.asyncio
+async def test_mine_filter_with_pagination(async_client, test_db):
+    user = await create_test_user(test_db, role="submitter")
+    other = await create_test_user(test_db, role="submitter")
+    client = await authenticated_client(async_client, test_db, user)
+    for i in range(3):
+        await client.post("/api/v1/ideas", data={"title": f"Mine {i}", "description": "d", "category": "technology"})
+    client = await authenticated_client(async_client, test_db, other)
+    await client.post("/api/v1/ideas", data={"title": "Other", "description": "d", "category": "other"})
+    client = await authenticated_client(async_client, test_db, user)
+    resp = await client.get("/api/v1/ideas?mine=true&page=1&limit=2")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 3
+    assert len(body["ideas"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_list_ideas_without_mine_returns_all(async_client, test_db):
+    user1 = await create_test_user(test_db, role="submitter")
+    user2 = await create_test_user(test_db, role="submitter")
+    client = await authenticated_client(async_client, test_db, user1)
+    await client.post("/api/v1/ideas", data={"title": "A", "description": "d", "category": "technology"})
+    client = await authenticated_client(async_client, test_db, user2)
+    await client.post("/api/v1/ideas", data={"title": "B", "description": "d", "category": "other"})
+    client = await authenticated_client(async_client, test_db, user1)
+    resp = await client.get("/api/v1/ideas")
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 2
+
+
+@pytest.mark.asyncio
+async def test_mine_filter_unauthenticated_returns_401(async_client, test_db):
+    resp = await async_client.get("/api/v1/ideas?mine=true")
+    assert resp.status_code == 401

@@ -20,8 +20,9 @@ export async function submitIdea(data: FormData): Promise<IdeaDetailResponse> {
   return handleResponse<IdeaDetailResponse>(res)
 }
 
-export async function listIdeas(page = 1, limit = 20): Promise<IdeaListResponse> {
-  const res = await fetch(`/api/v1/ideas?page=${page}&limit=${limit}`, {
+export async function listIdeas(page = 1, limit = 20, mine = false): Promise<IdeaListResponse> {
+  const mineParam = mine ? '&mine=true' : ''
+  const res = await fetch(`/api/v1/ideas?page=${page}&limit=${limit}${mineParam}`, {
     credentials: 'include',
   })
   return handleResponse<IdeaListResponse>(res)
