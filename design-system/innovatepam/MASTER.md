@@ -604,6 +604,257 @@ needed for MVP.
 
 ---
 
+## Sidebar Shell (Feature 003-ui-layout-overhaul)
+
+> These sections govern the universal layout shell used by all authenticated pages.
+> They extend the rules above — global rules still apply unless explicitly overridden here.
+
+---
+
+### Layout Contract
+
+All protected pages render inside the sidebar shell. The following conventions are
+**mandatory** for every page — do not override per-page.
+
+| Convention | Tailwind Classes | Notes |
+|------------|-----------------|-------|
+| Sidebar width | `w-[220px]` | Fixed, not fluid |
+| Content area offset (desktop) | `md:ml-[220px]` | Applied by `AppLayout.tsx`, not per-page |
+| Standard page wrapper | `px-6 py-8` | Every page's outermost `<div>` |
+| Form content column | `w-full max-w-2xl mx-auto` | SubmitIdea, any single-column form |
+| Detail content column | `w-full max-w-3xl` | IdeaDetail, any long-form content page |
+| Table/list pages | Full-width (no column) | Ideas list, Users list |
+| Page heading | `font-heading font-semibold text-xl text-primary mb-6` | Every page's `<h1>` |
+
+**Z-index layers** (must not be violated by page-level components):
+
+| Layer | z-index | Element |
+|-------|---------|---------|
+| Page content | default | Normal page content |
+| Mobile backdrop | `z-30` | Semi-transparent overlay behind sidebar |
+| Sidebar panel | `z-40` | Sidebar panel (desktop always-on + mobile overlay) |
+| Hamburger button | `z-50` | Mobile-only toggle button |
+
+---
+
+### Sidebar Shell Component
+
+Fixed left panel. Full viewport height, always visible on desktop, slides in as overlay on
+mobile.
+
+```
+// Sidebar panel
+fixed top-0 left-0 h-screen w-[220px] bg-white border-r border-border
+flex flex-col z-40 shadow-sm
+transition-transform duration-300
+md:translate-x-0
+```
+
+```tsx
+// AppLayout.tsx — content area wrapper
+<div className="md:ml-[220px] min-h-screen bg-background">
+  <Outlet />
+</div>
+```
+
+**TSX structure:**
+
+```tsx
+export default function Sidebar() {
+  const { user, logout } = useAuth()
+  const { pathname } = useLocation()
+  const [mobileOpen, setMobileOpen] = useState(false)
+
+  return (
+    <>
+      {/* Mobile hamburger button */}
+      <button
+        className="fixed top-4 left-4 z-50 md:hidden bg-white rounded-lg p-2 shadow-md
+                   border border-border cursor-pointer"
+        onClick={() => setMobileOpen(v => !v)}
+        aria-label={mobileOpen ? 'Close navigation' : 'Open navigation'}
+      >
+        {mobileOpen ? <X className="w-5 h-5 text-slate-600" /> : <Menu className="w-5 h-5 text-slate-600" />}
+      </button>
+
+      {/* Mobile backdrop */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/30 z-30 md:hidden"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar panel */}
+      <aside
+        className={cn(
+          'fixed top-0 left-0 h-screen w-[220px] bg-white border-r border-border',
+          'flex flex-col z-40 shadow-sm transition-transform duration-300',
+          'md:translate-x-0',
+          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+        )}
+      >
+        {/* Brand */}
+        <div className="px-6 py-5 border-b border-border">
+          <Link to="/" onClick={() => setMobileOpen(false)}
+            className="font-heading font-bold text-lg text-primary leading-none">
+            InnovatEpam
+          </Link>
+        </div>
+
+        {/* Nav items */}
+        <nav className="flex-1 px-4 py-6 flex flex-col gap-1" aria-label="Main navigation">
+          {NAV_ITEMS.filter(item => item.roles.includes(user?.role ?? '')).map(item => {
+            const active = pathname === item.to || (item.to !== '/' && pathname.startsWith(item.to))
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={() => setMobileOpen(false)}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium',
+                  'transition-all duration-200 cursor-pointer',
+                  active
+                    ? 'bg-primary/10 text-primary font-semibold'
+                    : 'text-slate-500 hover:text-primary hover:bg-primary/5'
+                )}
+                aria-current={active ? 'page' : undefined}
+              >
+                <item.icon className="w-4 h-4 shrink-0" />
+                {item.label}
+              </Link>
+            )
+          })}
+        </nav>
+
+        {/* User footer */}
+        <div className="px-4 py-4 border-t border-border space-y-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-sm font-medium text-slate-700 truncate flex-1">
+              {user?.full_name}
+            </span>
+            <Badge variant={user?.role === 'admin' ? 'admin' : 'submitter'}>
+              {user?.role}
+            </Badge>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start text-slate-500 hover:text-primary"
+            onClick={logout}
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Sign Out
+          </Button>
+        </div>
+      </aside>
+    </>
+  )
+}
+```
+
+**Icons used**: `Menu`, `X`, `LogOut` from `lucide-react` (all already installed).
+
+---
+
+### Nav Item Active Pill
+
+```
+// Default (inactive)
+flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
+text-slate-500 hover:text-primary hover:bg-primary/5 transition-all duration-200
+
+// Active (filled pill)
+bg-primary/10 text-primary font-semibold
+```
+
+**Active detection rule**: `pathname === to || (to !== '/' && pathname.startsWith(to))`
+
+This means visiting `/ideas/42` highlights the "Ideas" nav item, and visiting `/` (exactly)
+highlights "Home" without incorrectly matching sub-routes.
+
+---
+
+### Nav Item Configuration
+
+```ts
+const NAV_ITEMS = [
+  { to: '/',       label: 'Home',           icon: Home,        roles: ['submitter', 'admin'] },
+  { to: '/ideas',  label: 'Ideas',          icon: Lightbulb,   roles: ['submitter', 'admin'] },
+  { to: '/submit', label: 'Submit an Idea', icon: PlusCircle,  roles: ['submitter'] },
+  { to: '/users',  label: 'Manage Users',   icon: Users,       roles: ['admin'] },
+]
+```
+
+**Icons**: `Home`, `Lightbulb`, `PlusCircle`, `Users` from `lucide-react`.
+
+---
+
+### Mobile Sidebar Overlay
+
+```
+// Hamburger button (visible only on mobile: md:hidden)
+fixed top-4 left-4 z-50 md:hidden
+bg-white rounded-lg p-2 shadow-md border border-border cursor-pointer
+
+// Backdrop
+fixed inset-0 bg-black/30 z-30 md:hidden
+
+// Panel transition
+transition-transform duration-300
+md:translate-x-0
+// Open:   translate-x-0
+// Closed: -translate-x-full
+```
+
+**Accessibility**: hamburger button has `aria-label` describing current state. The sidebar
+`<aside>` uses `aria-label="Main navigation"`. Active nav items have `aria-current="page"`.
+
+---
+
+### "My Ideas" Filter Toggle (Ideas Page)
+
+Shown **only to users with the `submitter` role**. Placed above the ideas table, right-aligned.
+
+```
+// Toggle wrapper (above table)
+flex items-center justify-end gap-2 mb-4
+
+// Label
+text-sm font-medium text-slate-600 cursor-pointer select-none
+
+// Checkbox — uses existing shadcn/ui <Checkbox> component
+// Checked state: bg-primary border-primary
+```
+
+**TSX pattern:**
+
+```tsx
+{user?.role === 'submitter' && (
+  <div className="flex items-center justify-end gap-2 mb-4">
+    <label
+      htmlFor="mine-filter"
+      className="text-sm font-medium text-slate-600 cursor-pointer select-none"
+    >
+      My Ideas
+    </label>
+    <Checkbox
+      id="mine-filter"
+      checked={mine}
+      onCheckedChange={(checked) => {
+        const next = new URLSearchParams(searchParams)
+        if (checked) { next.set('mine', '1'); next.set('page', '1') }
+        else { next.delete('mine'); next.set('page', '1') }
+        setSearchParams(next)
+      }}
+    />
+  </div>
+)}
+```
+
+---
+
 ## Idea Submission Components (Feature 002-idea-submission)
 
 > These sections govern all UI in `002-idea-submission`. They extend the rules above —
