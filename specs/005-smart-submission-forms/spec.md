@@ -139,7 +139,7 @@ A consumer of the API (e.g., the frontend or an external client) retrieves the i
 - **SC-002**: 100% of required extra fields are enforced — no idea with a missing required extra field can be submitted through the form or the API.
 - **SC-003**: Extra data survives the full round-trip — all values entered at submission time appear unchanged and with correct labels on the idea detail page.
 - **SC-004**: The idea detail page renders without a JavaScript error for 100% of ideas with null extra_data, including pre-existing ideas.
-- **SC-005**: Switching categories takes effect instantly (no perceptible delay or flicker beyond field transition animation).
+- **SC-005**: Switching categories takes effect instantly (no perceptible delay or flicker); any visual transition uses Tailwind/shadcn/ui default CSS transitions — no custom animation is in scope for this feature.
 - **SC-006**: 100% of API responses for idea list and idea detail include the `extra_data` field, either with structured data or as null.
 
 ## Assumptions

@@ -1,17 +1,45 @@
 import type { IdeaDetailResponse, IdeaListResponse, EvaluateIdeaRequest, EvaluationStatus } from '@/types/ideas'
+import { CATEGORY_FIELD_SCHEMA } from '@/components/ideas/categoryFieldSchema'
 
 async function handleResponse<T>(res: Response): Promise<T> {
   if (res.ok) return res.json() as Promise<T>
   const body = await res.json().catch(() => ({}))
   const message = body?.detail ?? `HTTP ${res.status}`
-  const err: Error & { status?: number } = new Error(
+  const err: Error & { status?: number; detail?: unknown } = new Error(
     typeof message === 'string' ? message : JSON.stringify(message)
   )
   ;(err as any).status = res.status
+  ;(err as any).detail = body?.detail
   throw err
 }
 
 export async function submitIdea(data: FormData): Promise<IdeaDetailResponse> {
+  const category = data.get('category') as string | null
+
+  if (category && category !== 'other') {
+    const fields = CATEGORY_FIELD_SCHEMA[category] ?? []
+    const extraValues: Record<string, unknown> = {}
+    let hasExtraValues = false
+
+    for (const field of fields) {
+      const raw = data.get(field.key) as string | null
+      if (raw !== null && raw !== undefined) {
+        data.delete(field.key)
+        if (field.type === 'number') {
+          const trimmed = raw.trim()
+          extraValues[field.key] = trimmed === '' ? null : Number(trimmed)
+        } else {
+          extraValues[field.key] = raw === '' ? null : raw
+        }
+        hasExtraValues = true
+      }
+    }
+
+    if (hasExtraValues) {
+      data.append('extra_data', JSON.stringify(extraValues))
+    }
+  }
+
   const res = await fetch('/api/v1/ideas', {
     method: 'POST',
     credentials: 'include',
