@@ -23,9 +23,9 @@ const schema = z.object({
   full_name: z.string().min(1, 'Full name is required'),
   email: z.string().email('Enter a valid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
-  privacy_policy_accepted: z.literal(true, {
-    errorMap: () => ({ message: 'You must accept the Privacy Policy' }),
-  }),
+  privacy_policy_accepted: z
+    .boolean({ required_error: 'You must accept the Privacy Policy' })
+    .refine((val) => val === true, { message: 'You must accept the Privacy Policy' }),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -42,7 +42,7 @@ export default function RegisterForm() {
       full_name: '',
       email: '',
       password: '',
-      privacy_policy_accepted: undefined,
+      privacy_policy_accepted: false,
     },
   })
 
@@ -139,7 +139,7 @@ export default function RegisterForm() {
               <FormControl>
                 <Checkbox
                   checked={field.value === true}
-                  onCheckedChange={(checked) => field.onChange(checked ? true : undefined)}
+                  onCheckedChange={(checked) => field.onChange(checked === true)}
                 />
               </FormControl>
               <div className="space-y-1 leading-none">

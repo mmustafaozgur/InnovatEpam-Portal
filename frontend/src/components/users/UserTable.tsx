@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Lock } from 'lucide-react'
 import type { User } from '@/types/auth'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -39,12 +40,11 @@ export default function UserTable({ users, currentUser, onRefresh }: UserTablePr
             <TableHead>Full Name</TableHead>
             <TableHead>Email</TableHead>
             <TableHead>Role</TableHead>
-            <TableHead>Joined</TableHead>
-            <TableHead />
+            <TableHead>Adjust Role</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {users.map((user) => (
+          {users.filter((u) => u.id !== currentUser.id).map((user) => (
             <TableRow key={user.id}>
               <TableCell className="font-medium">{user.full_name}</TableCell>
               <TableCell>{user.email}</TableCell>
@@ -53,13 +53,13 @@ export default function UserTable({ users, currentUser, onRefresh }: UserTablePr
                   {user.role}
                 </Badge>
               </TableCell>
-              <TableCell className="text-sm text-gray-500">
-                {(user as any).created_at
-                  ? new Date((user as any).created_at).toLocaleDateString()
-                  : '—'}
-              </TableCell>
               <TableCell>
-                {user.role === 'submitter' && user.id !== currentUser.id && (
+                {user.role === 'admin' ? (
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-rose-400/70 italic select-none">
+                    <Lock className="h-3 w-3" />
+                    Denied
+                  </span>
+                ) : (
                   <Button
                     size="sm"
                     variant="outline"
