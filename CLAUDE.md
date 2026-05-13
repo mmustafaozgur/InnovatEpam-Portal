@@ -3,5 +3,5 @@ For project principles, technology stack, and development workflow, read the con
 `.specify/memory/constitution.md`
 
 For additional context about a specific feature (tech details, structure, tasks), read the
-feature's plan: `specs/[###-feature-name]/plan.md`
+feature's plan: `specs/001-user-auth/plan.md`
 <!-- SPECKIT END -->

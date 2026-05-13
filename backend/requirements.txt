@@ -1,0 +1,13 @@
+fastapi
+pydantic[email]
+PyJWT>=2.8.0
+passlib[bcrypt]
+bcrypt==3.2.2
+sqlalchemy[asyncio]
+aiosqlite
+uvicorn[standard]
+pydantic-settings
+python-multipart
+pytest
+pytest-asyncio
+httpx

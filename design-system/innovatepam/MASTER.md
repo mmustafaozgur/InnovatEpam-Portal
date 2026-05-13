@@ -246,3 +246,358 @@ Before delivering any UI code, verify:
 - [ ] No horizontal scroll on mobile
 - [ ] No raw CSS or hardcoded hex values — Tailwind tokens only
 - [ ] shadcn/ui components used where available before writing custom components
+
+---
+
+## Auth Components (Feature 001-user-auth)
+
+> These sections govern all UI in `001-user-auth`. They extend the rules above —
+> global rules still apply unless explicitly overridden here.
+
+---
+
+### Auth Page Layout
+
+Used for Login and Register pages. Full-viewport centered card on the portal background.
+
+```
+// Page shell
+min-h-screen bg-background flex items-center justify-center px-4
+
+// Card
+bg-white rounded-2xl shadow-lg p-8 w-full max-w-md
+
+// Logo / portal name (top of card)
+font-heading font-semibold text-2xl text-primary text-center mb-2
+
+// Subtitle
+font-body text-sm text-slate-500 text-center mb-8
+```
+
+**TSX structure:**
+
+```tsx
+<div className="min-h-screen bg-background flex items-center justify-center px-4">
+  <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-md">
+    <h1 className="font-heading font-semibold text-2xl text-primary text-center mb-2">
+      InnovatEPAM
+    </h1>
+    <p className="font-body text-sm text-slate-500 text-center mb-8">
+      Sign in to your account
+    </p>
+    {/* form */}
+  </div>
+</div>
+```
+
+**Responsive:** Card is `max-w-md` (448px) on desktop; on mobile (`<375px`) it fills
+`w-full` with `px-4` gutter. No full-bleed — always preserve 16px edge padding.
+
+---
+
+### Field-Level Error State
+
+Applied to any `<Input>` when shadcn `<FormMessage>` displays a validation error.
+Uses shadcn `<Form>` + `react-hook-form` + `zod` per stack guidelines.
+
+```
+// Input — error state (replaces default border)
+border-red-500 focus:border-red-500 focus:ring-red-500/20
+
+// Error message text (rendered by <FormMessage>)
+text-red-600 text-xs mt-1 flex items-center gap-1
+```
+
+**Accessibility:** The `<FormMessage>` element rendered by shadcn automatically carries
+`aria-live="polite"` semantics through the form field's `aria-describedby` binding.
+Do **not** add a separate `role="alert"` to field-level errors — use `role="alert"` only
+for banner-level notifications (see Inline Notification Banner below).
+
+**TSX pattern:**
+
+```tsx
+<FormField control={form.control} name="email" render={({ field }) => (
+  <FormItem>
+    <FormLabel>Email</FormLabel>
+    <FormControl>
+      <Input
+        {...field}
+        className={cn(
+          "px-4 py-3 border rounded-lg text-base transition-colors duration-200",
+          "focus:outline-none focus:ring-2",
+          form.formState.errors.email
+            ? "border-red-500 focus:border-red-500 focus:ring-red-500/20"
+            : "border-border focus:border-primary focus:ring-primary/20"
+        )}
+      />
+    </FormControl>
+    <FormMessage className="text-red-600 text-xs mt-1" />
+  </FormItem>
+)} />
+```
+
+---
+
+### Checkbox + Label (Privacy Policy)
+
+Uses shadcn `<Checkbox>`. Three visual states required.
+
+| State | Checkbox classes | Label classes |
+|-------|-----------------|---------------|
+| Unchecked (default) | `border-border` | `text-slate-600 text-sm` |
+| Checked | `bg-primary border-primary text-white` | `text-slate-600 text-sm` |
+| Error (unchecked on submit) | `border-red-500` | `text-red-600 text-sm` |
+
+**TSX pattern:**
+
+```tsx
+<FormField control={form.control} name="privacy_policy_accepted" render={({ field }) => (
+  <FormItem className="flex flex-row items-start gap-3 mt-2">
+    <FormControl>
+      <Checkbox
+        checked={field.value}
+        onCheckedChange={field.onChange}
+        className={cn(
+          "mt-0.5",
+          form.formState.errors.privacy_policy_accepted && "border-red-500"
+        )}
+      />
+    </FormControl>
+    <div className="space-y-1">
+      <FormLabel className={cn(
+        "text-sm font-normal cursor-pointer",
+        form.formState.errors.privacy_policy_accepted ? "text-red-600" : "text-slate-600"
+      )}>
+        I agree to the{" "}
+        <a href="/privacy" className="text-primary underline hover:opacity-80 transition-opacity duration-200">
+          Privacy Policy
+        </a>
+      </FormLabel>
+      <FormMessage className="text-red-600 text-xs" />
+    </div>
+  </FormItem>
+)} />
+```
+
+**Touch target:** The `<Checkbox>` renders at 16×16px visually; the wrapping `<FormLabel>`
+extends the tap area — the combined row meets the 44×44px minimum touch target requirement.
+
+---
+
+### Password Input (with Show/Hide Toggle)
+
+Inherits the standard input spec. Adds an icon-button overlay on the right edge.
+
+```
+// Wrapper
+relative
+
+// Input — same as standard input spec, plus right padding for icon
+pr-10
+
+// Toggle button
+absolute right-3 top-1/2 -translate-y-1/2
+text-slate-400 hover:text-slate-600 transition-colors duration-200 cursor-pointer
+p-0 bg-transparent border-none outline-none
+focus-visible:ring-2 focus-visible:ring-primary/40 rounded
+```
+
+**TSX pattern:**
+
+```tsx
+const [showPassword, setShowPassword] = useState(false);
+
+<div className="relative">
+  <Input
+    type={showPassword ? "text" : "password"}
+    className="pr-10 px-4 py-3 border border-border rounded-lg text-base
+               focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20
+               transition-colors duration-200"
+    {...field}
+  />
+  <button
+    type="button"
+    onClick={() => setShowPassword(v => !v)}
+    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400
+               hover:text-slate-600 transition-colors duration-200 cursor-pointer
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40
+               rounded"
+    aria-label={showPassword ? "Hide password" : "Show password"}
+  >
+    {showPassword
+      ? <EyeOff className="w-4 h-4" />
+      : <Eye className="w-4 h-4" />}
+  </button>
+</div>
+```
+
+**Icons:** Use `Eye` and `EyeOff` from `lucide-react`. Do **not** use emojis or custom SVGs.
+
+---
+
+### UserTable (Admin-only)
+
+Uses shadcn `<Table>`. Wrapped in `overflow-x-auto` for mobile (UX table guideline).
+
+```
+// Page heading
+font-heading font-semibold text-xl text-primary mb-6
+
+// Table wrapper
+overflow-x-auto rounded-xl border border-border shadow-sm
+
+// Table header row
+bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wide
+
+// Table body row — default
+bg-white border-b border-border last:border-0
+
+// Table body row — hover
+hover:bg-slate-50 transition-colors duration-150
+
+// Table cell
+px-4 py-3 text-sm text-slate-700
+```
+
+**Role badges:**
+
+| Role | Classes |
+|------|---------|
+| Admin | `inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary` |
+| Submitter | `inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600` |
+
+**Promote button states:**
+
+| State | Classes | Condition |
+|-------|---------|-----------|
+| Active | `text-sm font-medium text-primary hover:text-secondary underline-offset-2 hover:underline cursor-pointer transition-colors duration-200` | Row is a Submitter and not the current user |
+| Disabled (self) | `text-sm font-medium text-slate-300 cursor-not-allowed` | Row is the current user (ADR-006 D3 self-promotion guard) |
+| Disabled (already Admin) | — | Not shown; Promote column is empty for Admin rows |
+
+**TSX skeleton:**
+
+```tsx
+<div className="overflow-x-auto rounded-xl border border-border shadow-sm">
+  <Table>
+    <TableHeader>
+      <TableRow className="bg-slate-50">
+        <TableHead className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Full Name</TableHead>
+        <TableHead className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Email</TableHead>
+        <TableHead className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Role</TableHead>
+        <TableHead className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Action</TableHead>
+      </TableRow>
+    </TableHeader>
+    <TableBody>
+      {users.map(user => (
+        <TableRow key={user.id} className="hover:bg-slate-50 transition-colors duration-150">
+          <TableCell className="px-4 py-3 text-sm text-slate-700">{user.full_name}</TableCell>
+          <TableCell className="px-4 py-3 text-sm text-slate-700">{user.email}</TableCell>
+          <TableCell className="px-4 py-3">
+            <span className={user.role === 'admin'
+              ? "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary"
+              : "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600"
+            }>
+              {user.role === 'admin' ? 'Admin' : 'Submitter'}
+            </span>
+          </TableCell>
+          <TableCell className="px-4 py-3">
+            {user.role === 'submitter' && (
+              user.id === currentUser.id
+                ? <span className="text-sm font-medium text-slate-300 cursor-not-allowed">Promote</span>
+                : <button onClick={() => onPromote(user.id)}
+                    className="text-sm font-medium text-primary hover:text-secondary
+                               underline-offset-2 hover:underline cursor-pointer
+                               transition-colors duration-200">
+                    Promote
+                  </button>
+            )}
+          </TableCell>
+        </TableRow>
+      ))}
+    </TableBody>
+  </Table>
+</div>
+```
+
+---
+
+### Loading / Skeleton State (Auth Hydration)
+
+Shown full-page while `AuthProvider` awaits `GET /auth/me` on mount (`isLoading === true`).
+Keep it minimal — one centered spinner, no skeleton rows.
+
+```
+// Full-page overlay
+min-h-screen bg-background flex items-center justify-center
+
+// Spinner icon (Lucide Loader2 with spin animation)
+text-primary w-8 h-8 animate-spin
+```
+
+**TSX:**
+
+```tsx
+// In AuthProvider / App.tsx, before routing resolves:
+if (isLoading) {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <Loader2 className="text-primary w-8 h-8 animate-spin" />
+    </div>
+  );
+}
+```
+
+**`prefers-reduced-motion`:** Tailwind's `animate-spin` does not respect
+`prefers-reduced-motion` by default. Add this to `globals.css`:
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin { animation: none; }
+}
+```
+
+**Icon:** `Loader2` from `lucide-react`. No text, no skeleton, no logo during this state —
+the spinner alone signals "loading" without distracting content.
+
+---
+
+### Inline Notification Banner
+
+Displayed above the login form when the user's session has expired and they were redirected
+from a protected route (User Story 3 AC3). Also used for general auth error banners.
+
+```
+// Banner wrapper
+w-full rounded-lg px-4 py-3 mb-6 flex items-start gap-3
+text-sm font-medium
+
+// Warning variant (session expired)
+bg-amber-50 border border-amber-200 text-amber-800
+
+// Error variant (e.g., account issue)
+bg-red-50 border border-red-200 text-red-800
+```
+
+**Accessibility:** Banner uses `role="alert"` so screen readers announce it immediately.
+Do **not** use `role="alert"` on field-level `<FormMessage>` — reserve it for this banner.
+
+**TSX:**
+
+```tsx
+{sessionExpired && (
+  <div
+    role="alert"
+    className="w-full rounded-lg px-4 py-3 mb-6 flex items-start gap-3
+               bg-amber-50 border border-amber-200 text-amber-800 text-sm font-medium"
+  >
+    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+    <span>Your session has expired. Please sign in again.</span>
+  </div>
+)}
+```
+
+**Icon:** `AlertCircle` from `lucide-react`.
+
+**Placement:** Renders inside the auth card, directly above the `<form>` element.
+Dismissed automatically when the user starts typing or navigates away — no manual close button
+needed for MVP.
