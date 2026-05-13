@@ -6,6 +6,7 @@ from app.core.config import settings
 from app.database import init_db
 from app.api.routes.auth import router as auth_router
 from app.api.routes.users import router as users_router
+from app.api.routes.ideas import router as ideas_router
 
 
 @asynccontextmanager
@@ -26,3 +27,4 @@ app.add_middleware(
 
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
+app.include_router(ideas_router, prefix="/api/v1")

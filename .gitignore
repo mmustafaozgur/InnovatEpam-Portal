@@ -26,6 +26,9 @@ npm-debug.log*
 # IDE
 .vscode/
 .idea/
+
+# Claude Code local settings
+.claude/
 *.swp
 *.swo
 
@@ -38,3 +41,6 @@ Thumbs.db
 htmlcov/
 .pytest_cache/
 coverage/
+
+# Uploaded files (runtime-created)
+backend/uploads/

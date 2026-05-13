@@ -601,3 +601,696 @@ Do **not** use `role="alert"` on field-level `<FormMessage>` — reserve it for 
 **Placement:** Renders inside the auth card, directly above the `<form>` element.
 Dismissed automatically when the user starts typing or navigates away — no manual close button
 needed for MVP.
+
+---
+
+## Idea Submission Components (Feature 002-idea-submission)
+
+> These sections govern all UI in `002-idea-submission`. They extend the rules above —
+> global rules still apply unless explicitly overridden here.
+
+**New CSS addition — add once to `globals.css`** (shimmer animation for skeleton states):
+
+```css
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-shimmer { animation: none; background: #f1f5f9; }
+}
+```
+
+---
+
+### Idea Submission Form Layout
+
+Full-page centred content column rendered inside the authenticated sidebar layout.
+Wider than the auth card — no card shadow, no floating panel.
+Evaluator users see the Role-Restriction Notice (see below) in place of the form.
+
+```
+// Page wrapper (inside authenticated layout content area)
+px-6 py-12
+
+// Content column
+w-full max-w-2xl mx-auto
+
+// Page heading
+font-heading font-semibold text-2xl text-primary mb-8
+
+// Form fields stack
+flex flex-col gap-6
+
+// Submit button — full-width, follows last field
+mt-2 w-full
+```
+
+**TSX structure:**
+
+```tsx
+<div className="px-6 py-12">
+  <div className="w-full max-w-2xl mx-auto">
+    <h1 className="font-heading font-semibold text-2xl text-primary mb-8">
+      Submit an Idea
+    </h1>
+    {user.role === 'evaluator' ? (
+      <RoleRestrictionNotice />
+    ) : (
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6">
+          {/* Title field + CharacterCounter */}
+          {/* Description textarea + CharacterCounter */}
+          {/* Category Select */}
+          {/* FileUploadControl */}
+          <Button type="submit" variant="default" className="w-full mt-2">
+            Submit
+          </Button>
+        </form>
+      </Form>
+    )}
+  </div>
+</div>
+```
+
+**Responsive:** Column is `max-w-2xl` (672 px) on desktop; on mobile (`<375 px`) it fills
+`w-full` with the `px-6` gutter. Always preserve at least 16 px edge padding.
+
+**Width comparison:** Auth card is `max-w-md` (448 px). This form column is `max-w-2xl`
+(672 px) — intentionally wider to give long descriptions and file controls breathing room.
+
+---
+
+### Category Select
+
+shadcn/ui `<Select>` with four fixed options. Required field — no blank default.
+
+**Options:** Process Improvement · Technology · Cost Saving · Other
+
+**Visual states:**
+
+| State | Trigger appearance |
+|-------|--------------------|
+| Default / unfocused | `border-border text-slate-500` (placeholder text) |
+| Focused / open | `border-primary ring-2 ring-primary/20`; dropdown `shadow-lg rounded-lg` |
+| Value selected | `border-border text-slate-900` |
+| Error (no selection on submit) | `border-red-500 ring-2 ring-red-500/20` |
+
+```
+// SelectTrigger — base
+w-full px-4 py-3 border rounded-lg text-base transition-colors duration-200 cursor-pointer
+
+// SelectItem — each option row
+px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 cursor-pointer
+```
+
+**TSX pattern:**
+
+```tsx
+<FormField control={form.control} name="category" render={({ field }) => (
+  <FormItem>
+    <FormLabel>Category</FormLabel>
+    <Select onValueChange={field.onChange} defaultValue={field.value}>
+      <FormControl>
+        <SelectTrigger
+          className={cn(
+            "w-full px-4 py-3 border rounded-lg text-base transition-colors duration-200",
+            form.formState.errors.category
+              ? "border-red-500 focus:ring-2 focus:ring-red-500/20"
+              : "border-border focus:border-primary focus:ring-2 focus:ring-primary/20"
+          )}
+        >
+          <SelectValue placeholder="Select a category" />
+        </SelectTrigger>
+      </FormControl>
+      <SelectContent className="bg-white border border-border shadow-lg rounded-lg">
+        <SelectItem value="process_improvement">Process Improvement</SelectItem>
+        <SelectItem value="technology">Technology</SelectItem>
+        <SelectItem value="cost_saving">Cost Saving</SelectItem>
+        <SelectItem value="other">Other</SelectItem>
+      </SelectContent>
+    </Select>
+    <FormMessage className="text-red-600 text-xs mt-1" />
+  </FormItem>
+)} />
+```
+
+---
+
+### Character Counter
+
+Rendered directly below the `<Input>` (title, max 150 chars) and `<Textarea>`
+(description, max 3 000 chars). Right-aligned muted text; turns red when the remaining
+character count is ≤ 10 % of the field limit.
+
+**Thresholds:**
+
+| Field | Max | Red at remaining ≤ |
+|-------|-----|---------------------|
+| Title | 150 | 15 |
+| Description | 3 000 | 300 |
+
+**Classes — normal:** `text-xs text-slate-400 text-right mt-1 select-none`
+
+**Classes — warning (≤ 10 % remaining):** `text-xs text-red-500 text-right mt-1 select-none`
+
+**Reusable component:**
+
+```tsx
+interface CharacterCounterProps {
+  current: number;
+  max: number;
+}
+
+export function CharacterCounter({ current, max }: CharacterCounterProps) {
+  const remaining = max - current;
+  const isWarning = remaining <= Math.floor(max * 0.1);
+  return (
+    <p className={cn(
+      "text-xs text-right mt-1 select-none",
+      isWarning ? "text-red-500" : "text-slate-400"
+    )}>
+      {current} / {max}
+    </p>
+  );
+}
+```
+
+**Placement within a FormField:**
+
+```tsx
+<FormField control={form.control} name="title" render={({ field }) => (
+  <FormItem>
+    <FormLabel>Title</FormLabel>
+    <FormControl>
+      <Input maxLength={150} {...field} />
+    </FormControl>
+    <CharacterCounter current={field.value?.length ?? 0} max={150} />
+    <FormMessage className="text-red-600 text-xs mt-1" />
+  </FormItem>
+)} />
+```
+
+Render `<CharacterCounter>` between `<FormControl>` and `<FormMessage>` so the counter
+sits flush below the input and any error message appears last.
+
+---
+
+### File Upload Control
+
+Single-file picker, button-triggered. No drag-and-drop in v1.
+Accepted types: PDF, DOCX, PNG, JPG. Max size: 10 MB.
+Primary icon: `Paperclip` from `lucide-react`.
+
+**States:**
+
+| State | Visual |
+|-------|--------|
+| Idle | Secondary-style button: Paperclip icon + "Attach a file" label |
+| File selected | Row: icon + filename + size label + × clear button |
+| Error — wrong type | Red text below: "Only PDF, DOCX, PNG, and JPG files are accepted." |
+| Error — oversized | Red text below: "File must be 10 MB or smaller." |
+
+```
+// Idle button
+inline-flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-lg
+text-sm font-medium hover:bg-primary/5 transition-colors duration-200 cursor-pointer
+focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40
+
+// Selected row wrapper
+flex items-center gap-3 px-4 py-3 border border-border rounded-lg bg-white
+
+// Filename + size
+flex-1 text-sm text-slate-700 truncate   (size suffix: text-slate-400)
+
+// Clear (×) button
+text-slate-400 hover:text-slate-600 transition-colors duration-200 cursor-pointer
+focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded
+
+// Error text (both variants)
+text-red-500 text-xs mt-1
+```
+
+**TSX pattern:**
+
+```tsx
+import { Paperclip, X } from 'lucide-react';
+
+const ACCEPTED_TYPES = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'image/png',
+  'image/jpeg',
+];
+const MAX_SIZE_BYTES = 10 * 1024 * 1024;
+
+export function FileUploadControl({ onChange }: { onChange: (file: File | null) => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState<'type' | 'size' | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0] ?? null;
+    if (!selected) return;
+    if (!ACCEPTED_TYPES.includes(selected.type)) { setError('type'); setFile(null); return; }
+    if (selected.size > MAX_SIZE_BYTES)          { setError('size'); setFile(null); return; }
+    setError(null); setFile(selected); onChange(selected);
+  };
+
+  const handleClear = () => {
+    setFile(null); setError(null); onChange(null);
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
+  const formatSize = (b: number) =>
+    b < 1024 * 1024 ? `${(b / 1024).toFixed(0)} KB` : `${(b / (1024 * 1024)).toFixed(1)} MB`;
+
+  return (
+    <div>
+      <input ref={inputRef} type="file" accept=".pdf,.docx,.png,.jpg,.jpeg"
+             className="sr-only" onChange={handleSelect} aria-label="Attach a file" />
+
+      {!file ? (
+        <button type="button" onClick={() => inputRef.current?.click()}
+          className="inline-flex items-center gap-2 px-4 py-2 border border-primary
+                     text-primary rounded-lg text-sm font-medium
+                     hover:bg-primary/5 transition-colors duration-200 cursor-pointer
+                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+          <Paperclip className="w-4 h-4" />
+          Attach a file
+        </button>
+      ) : (
+        <div className="flex items-center gap-3 px-4 py-3 border border-border rounded-lg bg-white">
+          <Paperclip className="w-4 h-4 text-slate-400 shrink-0" />
+          <span className="flex-1 text-sm text-slate-700 truncate">
+            {file.name} <span className="text-slate-400">({formatSize(file.size)})</span>
+          </span>
+          <button type="button" onClick={handleClear} aria-label="Remove file"
+            className="text-slate-400 hover:text-slate-600 transition-colors duration-200
+                       cursor-pointer focus-visible:outline-none
+                       focus-visible:ring-2 focus-visible:ring-primary/40 rounded">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {error === 'type' && (
+        <p className="text-red-500 text-xs mt-1">Only PDF, DOCX, PNG, and JPG files are accepted.</p>
+      )}
+      {error === 'size' && (
+        <p className="text-red-500 text-xs mt-1">File must be 10 MB or smaller.</p>
+      )}
+    </div>
+  );
+}
+```
+
+**Icons:** `Paperclip`, `X` from `lucide-react`. Do **not** use emojis or custom SVGs.
+
+---
+
+### Ideas List Page Layout
+
+Full-width authenticated page rendered inside the sidebar layout. Lists all submitted ideas
+ordered newest-first.
+
+```
+// Page wrapper
+px-6 py-8
+
+// Page heading
+font-heading font-semibold text-xl text-primary mb-6
+
+// Table wrapper — same as UserTable
+overflow-x-auto rounded-xl border border-border shadow-sm
+
+// Table header row
+bg-slate-50 text-xs font-semibold text-slate-500 uppercase tracking-wide
+
+// Table body row — default
+bg-white border-b border-border last:border-0
+
+// Table body row — hover
+hover:bg-slate-50 transition-colors duration-150
+
+// Table cell
+px-4 py-3 text-sm text-slate-700
+
+// Title link
+text-primary font-medium hover:underline underline-offset-2 cursor-pointer
+transition-colors duration-200
+```
+
+**Columns:**
+
+| Column | Content | Width hint |
+|--------|---------|------------|
+| Title | `<Link>` to `/ideas/:id` | `w-2/5` |
+| Category | `<CategoryBadge>` | `w-1/5` |
+| Submitter | Full name string | `w-1/5` |
+| Date | `idea.submitted_at.slice(0, 10)` | `w-1/5` |
+
+**Empty state (when `ideas.length === 0`):**
+
+```
+// Wrapper
+flex flex-col items-center justify-center py-20 text-center gap-4
+
+// Icon — Lightbulb from lucide-react
+w-12 h-12 text-slate-300
+
+// Heading
+text-base font-semibold text-slate-500
+
+// Sub-text
+text-sm text-slate-400
+
+// CTA — visible to Submitters only, hidden for Evaluators
+<Button variant="default"> Submit an Idea </Button>
+```
+
+**TSX skeleton:**
+
+```tsx
+<div className="px-6 py-8">
+  <h1 className="font-heading font-semibold text-xl text-primary mb-6">Ideas</h1>
+
+  {isLoading ? (
+    <IdeasTableSkeleton />
+  ) : ideas.length === 0 ? (
+    <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
+      <Lightbulb className="w-12 h-12 text-slate-300" />
+      <p className="text-base font-semibold text-slate-500">No ideas yet</p>
+      <p className="text-sm text-slate-400">Be the first to submit an idea.</p>
+      {user.role === 'submitter' && (
+        <Button variant="default" asChild>
+          <Link to="/submit">Submit an Idea</Link>
+        </Button>
+      )}
+    </div>
+  ) : (
+    <div className="overflow-x-auto rounded-xl border border-border shadow-sm">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-slate-50">
+            <TableHead className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide w-2/5">Title</TableHead>
+            <TableHead className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide w-1/5">Category</TableHead>
+            <TableHead className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide w-1/5">Submitter</TableHead>
+            <TableHead className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide w-1/5">Date</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {ideas.map(idea => (
+            <TableRow key={idea.id} className="hover:bg-slate-50 transition-colors duration-150">
+              <TableCell className="px-4 py-3">
+                <Link to={`/ideas/${idea.id}`}
+                  className="text-primary font-medium hover:underline underline-offset-2
+                             cursor-pointer transition-colors duration-200">
+                  {idea.title}
+                </Link>
+              </TableCell>
+              <TableCell className="px-4 py-3"><CategoryBadge category={idea.category} /></TableCell>
+              <TableCell className="px-4 py-3 text-sm text-slate-700">{idea.submitter_name}</TableCell>
+              <TableCell className="px-4 py-3 text-sm text-slate-700">{idea.submitted_at.slice(0, 10)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )}
+</div>
+```
+
+---
+
+### Idea Detail Page Layout
+
+Single-column authenticated page. No edit or delete controls in v1.
+
+```
+// Page wrapper
+px-6 py-8
+
+// Content column
+w-full max-w-3xl
+
+// Header block
+mb-8
+
+// Idea title (h1)
+font-heading font-semibold text-2xl text-primary mb-3
+
+// Meta row (submitter · date)
+flex items-center gap-2 text-sm text-slate-400 mt-2
+
+// Body (description)
+font-body text-base text-slate-700 leading-relaxed max-w-prose mt-6
+
+// Footer separator
+mt-10 pt-6 border-t border-border
+```
+
+**TSX structure:**
+
+```tsx
+<div className="px-6 py-8">
+  <div className="w-full max-w-3xl">
+
+    {/* Header */}
+    <div className="mb-8">
+      <h1 className="font-heading font-semibold text-2xl text-primary mb-3">
+        {idea.title}
+      </h1>
+      <CategoryBadge category={idea.category} />
+      <p className="flex items-center gap-2 text-sm text-slate-400 mt-2">
+        <span>{idea.submitter_name}</span>
+        <span>·</span>
+        <span>{idea.submitted_at.slice(0, 10)}</span>
+      </p>
+    </div>
+
+    {/* Body */}
+    <p className="font-body text-base text-slate-700 leading-relaxed max-w-prose mt-6">
+      {idea.description}
+    </p>
+
+    {/* Footer — omitted entirely for non-authorised viewers */}
+    {canDownload && idea.file && (
+      <div className="mt-10 pt-6 border-t border-border">
+        <FileDownloadBlock file={idea.file} />
+      </div>
+    )}
+  </div>
+</div>
+```
+
+**`canDownload` rule:** `user.id === idea.submitter_id || user.role === 'evaluator'`.
+For all other Submitters the footer `<div>` is not rendered — not disabled, not hidden with CSS.
+
+---
+
+### Category Badge
+
+Neutral pill for displaying an idea's category label. Light grey background, dark text.
+Intentionally distinct from the role badges in UserTable (which use blue/slate tones).
+
+```
+inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+bg-slate-100 text-slate-700
+```
+
+**Reusable component:**
+
+```tsx
+const CATEGORY_LABELS: Record<string, string> = {
+  process_improvement: 'Process Improvement',
+  technology:          'Technology',
+  cost_saving:         'Cost Saving',
+  other:               'Other',
+};
+
+export function CategoryBadge({ category }: { category: string }) {
+  return (
+    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full
+                     text-xs font-medium bg-slate-100 text-slate-700">
+      {CATEGORY_LABELS[category] ?? category}
+    </span>
+  );
+}
+```
+
+**Do NOT** use `bg-primary/10 text-primary` (reserved for the Admin role badge).
+Category badges are always grey regardless of value.
+
+---
+
+### File Download Block
+
+Shown on the Idea Detail page when a file attachment exists AND the viewer is either the
+idea's original submitter or an Evaluator. Hidden entirely (not rendered, not greyed out)
+for all other Submitters.
+
+**File type icon mapping:**
+
+| Extension | Icon (lucide-react) |
+|-----------|---------------------|
+| `.pdf`, `.docx` | `FileText` |
+| `.png`, `.jpg`, `.jpeg` | `Image` |
+
+```
+// Block wrapper
+flex items-center gap-4
+
+// Icon
+w-5 h-5 text-slate-500
+
+// Filename
+text-sm font-medium text-slate-700 truncate max-w-xs
+
+// Download button
+Secondary / outline variant — border-primary text-primary hover:bg-primary/5
+```
+
+**TSX pattern:**
+
+```tsx
+import { FileText, Image as ImageIcon } from 'lucide-react';
+
+function fileIcon(filename: string) {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  return (ext === 'png' || ext === 'jpg' || ext === 'jpeg')
+    ? <ImageIcon className="w-5 h-5 text-slate-500" />
+    : <FileText className="w-5 h-5 text-slate-500" />;
+}
+
+export function FileDownloadBlock({ file }: { file: { name: string; url: string } }) {
+  return (
+    <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
+        {fileIcon(file.name)}
+        <span className="text-sm font-medium text-slate-700 truncate max-w-xs">
+          {file.name}
+        </span>
+      </div>
+      <Button variant="outline" size="sm" asChild>
+        <a href={file.url} download={file.name}>Download</a>
+      </Button>
+    </div>
+  );
+}
+```
+
+---
+
+### Ideas List Skeleton / Loading State
+
+Shimmer-effect placeholder rows shown while `GET /ideas` is in flight. Each skeleton row
+mirrors the four column widths of the Ideas List table. Uses the `.animate-shimmer` class
+defined in the CSS addition at the top of this feature section.
+
+```
+// Row wrapper — matches real data row height
+flex items-center gap-4 px-4 py-3 border-b border-border last:border-0
+
+// Title placeholder (wide)
+h-4 rounded animate-shimmer w-2/5
+
+// Category placeholder (pill shape)
+h-5 rounded-full animate-shimmer w-20
+
+// Submitter placeholder
+h-4 rounded animate-shimmer flex-1
+
+// Date placeholder (short)
+h-4 rounded animate-shimmer w-24
+```
+
+**TSX pattern:**
+
+```tsx
+function SkeletonRow() {
+  return (
+    <div className="flex items-center gap-4 px-4 py-3 border-b border-border last:border-0">
+      <div className="h-4 rounded animate-shimmer w-2/5" />
+      <div className="h-5 rounded-full animate-shimmer w-20" />
+      <div className="h-4 rounded animate-shimmer flex-1" />
+      <div className="h-4 rounded animate-shimmer w-24" />
+    </div>
+  );
+}
+
+export function IdeasTableSkeleton() {
+  return (
+    <div
+      className="overflow-x-auto rounded-xl border border-border shadow-sm"
+      aria-label="Loading ideas"
+    >
+      <div className="bg-slate-50 px-4 py-3 border-b border-border" aria-hidden="true">
+        <div className="flex gap-4">
+          <div className="h-3 rounded animate-shimmer w-2/5" />
+          <div className="h-3 rounded animate-shimmer w-1/5" />
+          <div className="h-3 rounded animate-shimmer w-1/5" />
+          <div className="h-3 rounded animate-shimmer w-1/5" />
+        </div>
+      </div>
+      {Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)}
+    </div>
+  );
+}
+```
+
+**Accessibility:** The `aria-label="Loading ideas"` on the wrapper lets screen readers
+announce the loading state without reading out placeholder widths.
+
+---
+
+### Role-Restriction Notice
+
+Calm informational banner displayed to Evaluators on the Submit Idea page in place of the
+form. Uses a blue-tinted background — **not amber** (amber is committed to session-expiry
+warnings; see Inline Notification Banner above).
+
+```
+// Banner wrapper
+w-full rounded-lg px-4 py-4 flex items-start gap-3
+bg-blue-50 border border-blue-200 text-blue-800 text-sm
+
+// Icon — Info from lucide-react
+w-5 h-5 shrink-0 mt-0.5
+```
+
+**Text:** "Your role is **Evaluator**. You can browse and evaluate ideas, but idea submission
+is reserved for Submitters."
+
+**Accessibility:** Uses `role="status"` (not `role="alert"`) — this is expected, non-urgent
+information. Screen readers may announce it at a natural pause rather than interrupting.
+
+**TSX:**
+
+```tsx
+import { Info } from 'lucide-react';
+
+export function RoleRestrictionNotice() {
+  return (
+    <div
+      role="status"
+      className="w-full rounded-lg px-4 py-4 flex items-start gap-3
+                 bg-blue-50 border border-blue-200 text-blue-800 text-sm"
+    >
+      <Info className="w-5 h-5 shrink-0 mt-0.5" />
+      <span>
+        Your role is <strong>Evaluator</strong>. You can browse and evaluate ideas,
+        but idea submission is reserved for Submitters.
+      </span>
+    </div>
+  );
+}
+```
+
+**Do NOT** use `bg-amber-50 / border-amber-200` here — that palette is committed to
+session-expiry warnings. Blue is strictly for informational role/permission notices.
