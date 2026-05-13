@@ -24,7 +24,7 @@ const schema = z.object({
   email: z.string().email('Enter a valid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   privacy_policy_accepted: z
-    .boolean({ required_error: 'You must accept the Privacy Policy' })
+    .boolean()
     .refine((val) => val === true, { message: 'You must accept the Privacy Policy' }),
 })
 
