@@ -16,7 +16,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { useAuth } from '@/context/AuthContext'
 import { register as registerApi } from '@/api/auth'
 
 const schema = z.object({
@@ -32,7 +31,7 @@ type FormValues = z.infer<typeof schema>
 
 export default function RegisterForm() {
   const navigate = useNavigate()
-  const { login } = useAuth()
+
   const [showPassword, setShowPassword] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -49,9 +48,8 @@ export default function RegisterForm() {
   const onSubmit = async (values: FormValues) => {
     setFormError(null)
     try {
-      const user = await registerApi(values)
-      login(user)
-      navigate('/')
+      await registerApi(values)
+      navigate('/login')
     } catch (err: any) {
       const msg = err?.message ?? 'Registration failed. Please try again.'
       if (err?.status === 409 || msg.toLowerCase().includes('email already registered')) {
