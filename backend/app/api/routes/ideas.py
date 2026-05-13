@@ -10,7 +10,7 @@ from app.core.config import settings
 from app.database import get_db
 from app.models.idea import Idea
 from app.models.user import User
-from app.schemas.ideas import IdeaDetailResponse, IdeaListResponse
+from app.schemas.ideas import EvaluateIdeaRequest, EvaluationStatus, IdeaDetailResponse, IdeaListResponse
 from app.services import idea_service
 from sqlalchemy import select
 
@@ -40,11 +40,19 @@ async def list_ideas(
     page: int = 1,
     limit: int = 20,
     mine: bool = Query(False, description="Filter to current user's ideas"),
+    status: Optional[EvaluationStatus] = Query(None, description="Filter by evaluation status"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IdeaListResponse:
     submitter_id_filter = current_user.id if mine else None
-    return await idea_service.list_ideas(db, page=page, limit=limit, submitter_id_filter=submitter_id_filter)
+    return await idea_service.list_ideas(
+        db,
+        caller=current_user,
+        page=page,
+        limit=limit,
+        submitter_id_filter=submitter_id_filter,
+        status_filter=status,
+    )
 
 
 @router.get("/{idea_id}", response_model=IdeaDetailResponse)
@@ -53,7 +61,23 @@ async def get_idea(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IdeaDetailResponse:
-    return await idea_service.get_idea(db, idea_id)
+    return await idea_service.get_idea(db, idea_id, caller=current_user)
+
+
+@router.patch("/{idea_id}/evaluate", response_model=IdeaDetailResponse)
+async def evaluate_idea(
+    idea_id: str,
+    body: EvaluateIdeaRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> IdeaDetailResponse:
+    return await idea_service.evaluate_idea(
+        db,
+        idea_id=idea_id,
+        acting_admin=current_user,
+        new_status=body.status,
+        comment=body.comment,
+    )
 
 
 @router.get("/{idea_id}/attachment")
