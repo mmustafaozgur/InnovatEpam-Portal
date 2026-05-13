@@ -26,8 +26,8 @@ export default function UsersPage() {
   if (!currentUser) return null
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8">
-      <h1 className="text-xl font-bold font-heading text-primary mb-6">User Management</h1>
+    <div className="px-6 py-8">
+      <h1 className="font-heading font-semibold text-xl text-primary mb-6">User Management</h1>
       {isLoading ? (
         <div className="flex justify-center py-12" role="status">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />

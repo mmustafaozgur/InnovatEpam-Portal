@@ -179,3 +179,40 @@ async def test_save_file_writes_to_correct_path(tmp_path):
     await idea_service.save_file(idea_id, dest, data)
     assert dest.exists()
     assert dest.read_bytes() == data
+
+
+# ---------------------------------------------------------------------------
+# T007 — mine filter unit tests (submitter_id_filter)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_list_ideas_submitter_id_filter_returns_only_own_ideas(test_db):
+    user1 = await create_test_user(test_db, role="submitter")
+    user2 = await create_test_user(test_db, role="submitter")
+    await idea_service.create_idea(test_db, user1, "User1 Idea", "desc", "technology")
+    await idea_service.create_idea(test_db, user2, "User2 Idea", "desc", "other")
+    result = await idea_service.list_ideas(test_db, page=1, limit=10, submitter_id_filter=user1.id)
+    assert len(result.ideas) == 1
+    assert result.ideas[0].submitter_name == user1.full_name
+
+
+@pytest.mark.asyncio
+async def test_list_ideas_submitter_id_filter_total_reflects_only_own(test_db):
+    user1 = await create_test_user(test_db, role="submitter")
+    user2 = await create_test_user(test_db, role="submitter")
+    await idea_service.create_idea(test_db, user1, "U1 A", "desc", "technology")
+    await idea_service.create_idea(test_db, user1, "U1 B", "desc", "other")
+    await idea_service.create_idea(test_db, user2, "U2 A", "desc", "cost_saving")
+    result = await idea_service.list_ideas(test_db, page=1, limit=10, submitter_id_filter=user1.id)
+    assert result.total == 2
+
+
+@pytest.mark.asyncio
+async def test_list_ideas_submitter_id_filter_none_returns_all(test_db):
+    user1 = await create_test_user(test_db, role="submitter")
+    user2 = await create_test_user(test_db, role="submitter")
+    await idea_service.create_idea(test_db, user1, "U1 Idea", "desc", "technology")
+    await idea_service.create_idea(test_db, user2, "U2 Idea", "desc", "other")
+    result = await idea_service.list_ideas(test_db, page=1, limit=10, submitter_id_filter=None)
+    assert result.total == 2
+    assert len(result.ideas) == 2

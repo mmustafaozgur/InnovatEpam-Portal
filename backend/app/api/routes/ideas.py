@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,10 +39,12 @@ async def submit_idea(
 async def list_ideas(
     page: int = 1,
     limit: int = 20,
+    mine: bool = Query(False, description="Filter to current user's ideas"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IdeaListResponse:
-    return await idea_service.list_ideas(db, page=page, limit=limit)
+    submitter_id_filter = current_user.id if mine else None
+    return await idea_service.list_ideas(db, page=page, limit=limit, submitter_id_filter=submitter_id_filter)
 
 
 @router.get("/{idea_id}", response_model=IdeaDetailResponse)

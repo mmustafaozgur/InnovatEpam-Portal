@@ -1,6 +1,7 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { vi, beforeEach } from 'vitest'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { AuthContext } from '@/context/AuthContext'
 import IdeasPage from '../IdeasPage'
 
@@ -10,12 +11,19 @@ vi.mock('@/api/ideas', () => ({
 
 import { listIdeas } from '@/api/ideas'
 
-function renderWithAuth(role: 'submitter' | 'admin') {
+function SearchParamsDisplay() {
+  const [searchParams] = useSearchParams()
+  return <div data-testid="search-params">{searchParams.toString()}</div>
+}
+
+function renderWithAuth(role: 'submitter' | 'admin', initialUrl = '/ideas') {
   const user = { id: 'u1', full_name: 'Test', email: 't@epam.com', role }
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialUrl]}>
       <AuthContext.Provider value={{ user, isLoading: false, login: vi.fn(), logout: vi.fn() }}>
-        <IdeasPage />
+        <Routes>
+          <Route path="/ideas" element={<><IdeasPage /><SearchParamsDisplay /></>} />
+        </Routes>
       </AuthContext.Provider>
     </MemoryRouter>
   )
@@ -29,7 +37,7 @@ const ideaList = {
   total: 1, page: 1, limit: 20,
 }
 
-describe('IdeasPage', () => {
+describe('IdeasPage — original tests', () => {
   beforeEach(() => { vi.clearAllMocks() })
 
   it('shows skeleton while loading', () => {
@@ -57,5 +65,84 @@ describe('IdeasPage', () => {
     renderWithAuth('submitter')
     await waitFor(() => expect(screen.getByText('Idea One')).toBeInTheDocument())
     expect(screen.getByText('Alice')).toBeInTheDocument()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// T012 — mine filter + URL-state tests
+// ---------------------------------------------------------------------------
+
+describe('IdeasPage — mine filter', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('Submitter sees "My Ideas" toggle', async () => {
+    ;(listIdeas as ReturnType<typeof vi.fn>).mockResolvedValueOnce(emptyList)
+    renderWithAuth('submitter')
+    await waitFor(() => expect(listIdeas).toHaveBeenCalled())
+    expect(screen.getByLabelText(/my ideas/i)).toBeInTheDocument()
+  })
+
+  it('Admin does NOT see "My Ideas" toggle', async () => {
+    ;(listIdeas as ReturnType<typeof vi.fn>).mockResolvedValueOnce(emptyList)
+    renderWithAuth('admin')
+    await waitFor(() => expect(listIdeas).toHaveBeenCalled())
+    expect(screen.queryByLabelText(/my ideas/i)).not.toBeInTheDocument()
+  })
+
+  it('activating toggle sets mine=1 in URL and resets page to 1', async () => {
+    ;(listIdeas as ReturnType<typeof vi.fn>).mockResolvedValue(emptyList)
+    renderWithAuth('submitter', '/ideas?page=3')
+    await waitFor(() => expect(listIdeas).toHaveBeenCalled())
+    const checkbox = screen.getByLabelText(/my ideas/i)
+    fireEvent.click(checkbox)
+    await waitFor(() => {
+      const params = screen.getByTestId('search-params').textContent ?? ''
+      expect(params).toContain('mine=1')
+      expect(params).toContain('page=1')
+      expect(params).not.toContain('page=3')
+    })
+  })
+
+  it('when URL has mine=1, listIdeas is called with mine: true', async () => {
+    ;(listIdeas as ReturnType<typeof vi.fn>).mockResolvedValueOnce(emptyList)
+    renderWithAuth('submitter', '/ideas?mine=1')
+    await waitFor(() => expect(listIdeas).toHaveBeenCalledWith(expect.anything(), expect.anything(), true))
+  })
+
+  it('deactivating toggle removes mine from URL and resets page to 1', async () => {
+    ;(listIdeas as ReturnType<typeof vi.fn>).mockResolvedValue(emptyList)
+    renderWithAuth('submitter', '/ideas?mine=1&page=2')
+    await waitFor(() => expect(listIdeas).toHaveBeenCalled())
+    const checkbox = screen.getByLabelText(/my ideas/i)
+    fireEvent.click(checkbox)
+    await waitFor(() => {
+      const params = screen.getByTestId('search-params').textContent ?? ''
+      expect(params).not.toContain('mine=1')
+      expect(params).toContain('page=1')
+    })
+  })
+
+  it('paginating while mine=1 preserves mine=1 in URL', async () => {
+    const page1 = { ideas: Array.from({ length: 20 }, (_, i) => ({
+      id: `i${i}`, title: `Idea ${i}`, category: 'technology',
+      submitter_name: 'Test', submitted_at: '2026-05-13T10:00:00Z', has_attachment: false,
+    })), total: 25, page: 1, limit: 20 }
+    ;(listIdeas as ReturnType<typeof vi.fn>).mockResolvedValue(page1)
+    renderWithAuth('submitter', '/ideas?mine=1')
+    await waitFor(() => expect(screen.queryByLabelText('Loading ideas')).not.toBeInTheDocument())
+    const nextBtn = screen.queryByRole('button', { name: /next/i })
+    if (nextBtn) {
+      fireEvent.click(nextBtn)
+      await waitFor(() => {
+        const params = screen.getByTestId('search-params').textContent ?? ''
+        expect(params).toContain('mine=1')
+      })
+    }
+  })
+
+  it('when mine=1 and API returns empty, shows mine-specific empty state', async () => {
+    ;(listIdeas as ReturnType<typeof vi.fn>).mockResolvedValueOnce(emptyList)
+    renderWithAuth('submitter', '/ideas?mine=1')
+    await waitFor(() => expect(screen.getByText(/haven't submitted any ideas/i)).toBeInTheDocument())
   })
 })
