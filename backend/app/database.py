@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from app.core.config import settings
 from app.models.user import Base
 import app.models.session  # noqa: F401 — ensure Session model is registered
+import app.models.idea  # noqa: F401 — ensure Idea model is registered
 
 async_engine = create_async_engine(settings.DATABASE_URL, echo=False)
 

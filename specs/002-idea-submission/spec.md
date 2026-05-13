@@ -83,7 +83,7 @@ Any authenticated user (Submitter or Evaluator) can browse a paginated list of a
 - **FR-005**: System MUST allow Submitters to optionally attach a single file per idea at submission time.
 - **FR-006**: System MUST accept files of types PDF, DOCX, PNG, and JPG only; all other types MUST be rejected with an error message.
 - **FR-007**: System MUST reject files larger than 10 MB with an error message before the idea is submitted.
-- **FR-008**: System MUST enforce one file per idea; attaching a second file MUST replace or reject the first (single-file constraint).
+- **FR-008**: System MUST enforce one file per idea. The UI MUST allow only one file at a time; selecting a new file silently replaces the previous selection. The backend MUST store at most one file per idea row and MUST ignore any additional file fields in a multipart request.
 - **FR-009**: System MUST allow ideas to be submitted without any file attachment.
 - **FR-010**: System MUST allow all authenticated users (both Submitters and Evaluators) to view the full list of submitted ideas.
 - **FR-011**: System MUST display in the ideas list: idea title, category, submitter name, and submission date. The list MUST be ordered by submission date descending (newest first) by default.
@@ -91,7 +91,7 @@ Any authenticated user (Submitter or Evaluator) can browse a paginated list of a
 - **FR-013**: System MUST display a download link for the attached file only to the idea's original submitter and users with the Evaluator (Admin) role. Other Submitters viewing the same idea's detail page MUST NOT see a download link. Direct requests to the file URL by unauthorized users MUST be rejected (not merely hidden).
 - **FR-014**: System MUST redirect unauthenticated users to the login page when they attempt to access any idea-related page.
 - **FR-015**: System MUST use a fixed set of categories: Process Improvement, Technology, Cost Saving, Other. Categories are hardcoded for v1; admin-managed categories are explicitly out of scope.
-- **FR-016**: System MUST store attached files in the filesystem under a dedicated `/uploads` directory and serve them via a static file route. SQLite BLOB storage is out of scope for v1.
+- **FR-016**: System MUST store attached files in the filesystem under a dedicated `/uploads` directory and serve them via an authenticated file endpoint that enforces the access rules in FR-013. SQLite BLOB storage and unauthenticated static file mounts are out of scope for v1.
 
 ### Key Entities *(include if feature involves data)*
 

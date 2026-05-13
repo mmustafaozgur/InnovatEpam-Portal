@@ -1,3 +1,4 @@
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -10,6 +11,10 @@ class Settings(BaseSettings):
     COOKIE_NAME: str = "access_token"
     DATABASE_URL: str = "sqlite+aiosqlite:///./innovatepam.db"
     CORS_ORIGINS: str = "http://localhost:5173"
+    UPLOAD_DIR: str = "./uploads"
+
+    def upload_path(self, idea_id: str, stored_name: str) -> Path:
+        return Path(self.UPLOAD_DIR) / idea_id / stored_name
 
 
 settings = Settings()

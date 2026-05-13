@@ -1,14 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ChevronLeft } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { listUsers } from '@/api/auth'
 import type { User } from '@/types/auth'
-import { Button } from '@/components/ui/button'
 import UserTable from '@/components/users/UserTable'
 
 export default function UsersPage() {
-  const navigate = useNavigate()
   const { user: currentUser } = useAuth()
   const [users, setUsers] = useState<User[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -30,24 +26,15 @@ export default function UsersPage() {
   if (!currentUser) return null
 
   return (
-    <div className="min-h-screen bg-background">
-      <nav className="bg-white shadow-sm border-b border-gray-200 px-6 py-4 flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-1.5 text-muted-foreground hover:text-primary">
-          <ChevronLeft className="h-4 w-4" />
-          Go back
-        </Button>
-        <h1 className="text-lg font-bold font-heading text-primary">User Management</h1>
-      </nav>
-      <main className="max-w-4xl mx-auto px-6 py-8">
-        <h2 className="text-xl font-bold font-heading text-primary mb-6">All Users</h2>
-        {isLoading ? (
-          <div className="flex justify-center py-12" role="status">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          </div>
-        ) : (
-          <UserTable users={users} currentUser={currentUser} onRefresh={fetchUsers} />
-        )}
-      </main>
+    <div className="max-w-4xl mx-auto px-6 py-8">
+      <h1 className="text-xl font-bold font-heading text-primary mb-6">User Management</h1>
+      {isLoading ? (
+        <div className="flex justify-center py-12" role="status">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        </div>
+      ) : (
+        <UserTable users={users} currentUser={currentUser} onRefresh={fetchUsers} />
+      )}
     </div>
   )
 }
