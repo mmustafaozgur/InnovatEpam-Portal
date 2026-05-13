@@ -18,6 +18,7 @@ function makeIdea(overrides: Partial<IdeaDetailResponse> = {}): IdeaDetailRespon
       comment: null,
       evaluated_at: null,
       assigned_admin_id: null,
+      assigned_admin_name: null,
     },
     ...overrides,
   }
@@ -71,13 +72,14 @@ describe('EvaluationForm — State B (under_review)', () => {
       comment: 'Current comment',
       evaluated_at: '2026-05-13T10:00:00Z',
       assigned_admin_id: 'admin1',
+      assigned_admin_name: 'Admin User',
     },
   })
 
-  it('State B: status select is disabled', () => {
+  it('State B: status select is enabled', () => {
     render(<EvaluationForm idea={underReviewIdea} onSubmit={vi.fn()} />)
     const select = screen.getByRole('combobox') as HTMLSelectElement
-    expect(select).toBeDisabled()
+    expect(select).not.toBeDisabled()
   })
 
   it('State B: comment textarea is enabled', () => {
@@ -86,12 +88,34 @@ describe('EvaluationForm — State B (under_review)', () => {
     expect(textarea).not.toBeDisabled()
   })
 
-  it('State B: submitting fires onSubmit with status under_review', () => {
+  it('State B: submitting with unchanged status fires onSubmit with under_review', () => {
     const onSubmit = vi.fn()
     render(<EvaluationForm idea={underReviewIdea} onSubmit={onSubmit} />)
     fireEvent.click(screen.getByRole('button', { name: /save evaluation/i }))
     expect(onSubmit).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'under_review' })
+    )
+  })
+
+  it('State B: can change status to accepted', () => {
+    const onSubmit = vi.fn()
+    render(<EvaluationForm idea={underReviewIdea} onSubmit={onSubmit} />)
+    const select = screen.getByRole('combobox') as HTMLSelectElement
+    fireEvent.change(select, { target: { value: 'accepted' } })
+    fireEvent.click(screen.getByRole('button', { name: /save evaluation/i }))
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'accepted' })
+    )
+  })
+
+  it('State B: can change status to rejected', () => {
+    const onSubmit = vi.fn()
+    render(<EvaluationForm idea={underReviewIdea} onSubmit={onSubmit} />)
+    const select = screen.getByRole('combobox') as HTMLSelectElement
+    fireEvent.change(select, { target: { value: 'rejected' } })
+    fireEvent.click(screen.getByRole('button', { name: /save evaluation/i }))
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'rejected' })
     )
   })
 

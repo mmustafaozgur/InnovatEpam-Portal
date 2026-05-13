@@ -11,6 +11,7 @@ export interface EvaluationInfo {
   comment: string | null
   evaluated_at: string | null
   assigned_admin_id: string | null
+  assigned_admin_name: string | null
 }
 
 export interface EvaluateIdeaRequest {
@@ -38,6 +39,7 @@ export interface IdeaSummaryResponse {
   submitted_at: string
   has_attachment: boolean
   evaluation_status: EvaluationStatus
+  reviewer_name: string | null
 }
 
 export interface IdeaListResponse {

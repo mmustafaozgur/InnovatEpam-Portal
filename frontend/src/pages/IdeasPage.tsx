@@ -7,8 +7,8 @@ import type { IdeaListResponse, EvaluationStatus } from '@/types/ideas'
 import { IdeasTableSkeleton } from '@/components/ideas/IdeasTableSkeleton'
 import { IdeasTable } from '@/components/ideas/IdeasTable'
 import { StatusFilter } from '@/components/ideas/StatusFilter'
+import { MineFilter } from '@/components/ideas/MineFilter'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 
 export default function IdeasPage() {
   const { user } = useAuth()
@@ -28,7 +28,7 @@ export default function IdeasPage() {
     req.then(setData).finally(() => setIsLoading(false))
   }, [page, mine, status])
 
-  const handleMineChange = (checked: boolean | 'indeterminate') => {
+  const handleMineToggle = (checked: boolean) => {
     const next = new URLSearchParams(searchParams)
     if (checked) {
       next.set('mine', '1')
@@ -69,19 +69,7 @@ export default function IdeasPage() {
       <div className="flex items-center justify-between gap-4 mb-4">
         <StatusFilter value={status} onChange={handleStatusChange} />
         {user?.role === 'submitter' && (
-          <div className="flex items-center gap-2">
-            <label
-              htmlFor="mine-filter"
-              className="text-sm font-medium text-slate-600 cursor-pointer select-none"
-            >
-              My Ideas
-            </label>
-            <Checkbox
-              id="mine-filter"
-              checked={mine}
-              onCheckedChange={handleMineChange}
-            />
-          </div>
+          <MineFilter value={mine} onChange={handleMineToggle} />
         )}
       </div>
 

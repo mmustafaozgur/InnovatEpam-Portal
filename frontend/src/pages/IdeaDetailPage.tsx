@@ -57,6 +57,8 @@ export default function IdeaDetailPage() {
             <span>{idea.submitter_name}</span>
             <span>·</span>
             <span>{idea.submitted_at.slice(0, 10)}</span>
+            <span>·</span>
+            <span>Reviewer: {idea.evaluation.assigned_admin_name ?? '—'}</span>
           </p>
         </div>
 

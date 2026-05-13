@@ -72,15 +72,17 @@ def _write_bytes(dest: Path, data: bytes) -> None:
     dest.write_bytes(data)
 
 
-def build_evaluation_info(idea: Idea, caller: User) -> EvaluationInfo:
+def build_evaluation_info(idea: Idea, caller: User, admin_name: Optional[str] = None) -> EvaluationInfo:
     """Apply visibility rules from data-model.md §3.3."""
     is_admin = caller.role == "admin"
-    comment_visible = idea.evaluation_status in ("accepted", "rejected") or is_admin
+    is_owner = caller.id == idea.submitter_id
+    comment_visible = is_admin or (is_owner and idea.evaluation_status in ("accepted", "rejected"))
     return EvaluationInfo(
         status=idea.evaluation_status,
         comment=idea.evaluation_comment if comment_visible else None,
         evaluated_at=idea.evaluated_at,
         assigned_admin_id=idea.assigned_admin_id if is_admin else None,
+        assigned_admin_name=admin_name,
     )
 
 
@@ -158,6 +160,7 @@ async def create_idea(
             comment=None,
             evaluated_at=None,
             assigned_admin_id=None,
+            assigned_admin_name=None,
         ),
     )
 
@@ -229,7 +232,7 @@ async def evaluate_idea(
             size=idea.attachment_size or 0,
             mime_type=idea.attachment_mime_type or "",
         ) if idea.attachment_stored_name else None,
-        evaluation=build_evaluation_info(idea, acting_admin),
+        evaluation=build_evaluation_info(idea, acting_admin, admin_name=acting_admin.full_name),
     )
 
 
@@ -268,6 +271,12 @@ async def list_ideas(
     )
     rows = result.all()
 
+    admin_ids = {row.Idea.assigned_admin_id for row in rows if row.Idea.assigned_admin_id}
+    admin_names: dict[str, str] = {}
+    if admin_ids:
+        admins_result = await db.execute(select(User).where(User.id.in_(admin_ids)))
+        admin_names = {u.id: u.full_name for u in admins_result.scalars()}
+
     ideas = [
         IdeaSummaryResponse(
             id=row.Idea.id,
@@ -277,6 +286,7 @@ async def list_ideas(
             submitted_at=row.Idea.submitted_at,
             has_attachment=row.Idea.attachment_stored_name is not None,
             evaluation_status=row.Idea.evaluation_status,
+            reviewer_name=admin_names.get(row.Idea.assigned_admin_id) if row.Idea.assigned_admin_id else None,
         )
         for row in rows
     ]
@@ -307,14 +317,20 @@ async def get_idea(
             mime_type=idea.attachment_mime_type or "",
         )
 
+    admin_name = None
+    if idea.assigned_admin_id:
+        admin = await db.get(User, idea.assigned_admin_id)
+        admin_name = admin.full_name if admin else None
+
     if caller is not None:
-        evaluation = build_evaluation_info(idea, caller)
+        evaluation = build_evaluation_info(idea, caller, admin_name)
     else:
         evaluation = EvaluationInfo(
             status=idea.evaluation_status,
             comment=idea.evaluation_comment,
             evaluated_at=idea.evaluated_at,
             assigned_admin_id=idea.assigned_admin_id,
+            assigned_admin_name=admin_name,
         )
 
     return IdeaDetailResponse(

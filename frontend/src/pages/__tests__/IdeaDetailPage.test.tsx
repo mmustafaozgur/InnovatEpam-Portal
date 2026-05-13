@@ -16,6 +16,7 @@ const baseEvaluation = {
   comment: null,
   evaluated_at: null,
   assigned_admin_id: null,
+  assigned_admin_name: null,
 }
 
 const ideaNoFile = {
@@ -108,6 +109,7 @@ describe('IdeaDetailPage — comment visibility (T030)', () => {
         comment: null,
         evaluated_at: '2026-05-13T10:00:00Z',
         assigned_admin_id: null,
+        assigned_admin_name: null,
       },
     }
     ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(idea)
@@ -124,12 +126,31 @@ describe('IdeaDetailPage — comment visibility (T030)', () => {
         comment: 'Great idea!',
         evaluated_at: '2026-05-13T10:00:00Z',
         assigned_admin_id: null,
+        assigned_admin_name: null,
       },
     }
     ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(idea)
     renderWithAuth('u1', 'submitter')
     await waitFor(() => expect(screen.getByTestId('evaluation-comment')).toBeInTheDocument())
     expect(screen.getByText('Great idea!')).toBeInTheDocument()
+  })
+
+  it('non-owner submitter + accepted → comment block absent', async () => {
+    const idea = {
+      ...ideaNoFile,
+      submitter_id: 'other-user',
+      evaluation: {
+        status: 'accepted' as const,
+        comment: null,
+        evaluated_at: '2026-05-13T10:00:00Z',
+        assigned_admin_id: null,
+        assigned_admin_name: null,
+      },
+    }
+    ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(idea)
+    renderWithAuth('u1', 'submitter')
+    await waitFor(() => expect(screen.getByText('My Idea')).toBeInTheDocument())
+    expect(screen.queryByTestId('evaluation-comment')).not.toBeInTheDocument()
   })
 
   it('admin + under_review → comment block present', async () => {
@@ -140,6 +161,7 @@ describe('IdeaDetailPage — comment visibility (T030)', () => {
         comment: 'Internal note',
         evaluated_at: '2026-05-13T10:00:00Z',
         assigned_admin_id: 'admin1',
+        assigned_admin_name: null,
       },
     }
     ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(idea)
@@ -173,11 +195,39 @@ describe('IdeaDetailPage — EvaluationForm visibility', () => {
         comment: 'Great!',
         evaluated_at: '2026-05-13T10:00:00Z',
         assigned_admin_id: 'admin1',
+        assigned_admin_name: null,
       },
     }
     ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(idea)
     renderWithAuth('admin1', 'admin')
     await waitFor(() => expect(screen.getByText('My Idea')).toBeInTheDocument())
     expect(screen.queryByRole('button', { name: /save evaluation/i })).not.toBeInTheDocument()
+  })
+})
+
+describe('IdeaDetailPage — reviewer name', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('renders "—" when assigned_admin_name is null', async () => {
+    ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(ideaNoFile)
+    renderWithAuth('u1', 'submitter')
+    await waitFor(() => expect(screen.getByText('My Idea')).toBeInTheDocument())
+    expect(screen.getByText(/Reviewer: —/)).toBeInTheDocument()
+  })
+
+  it('renders reviewer name when assigned_admin_name is present', async () => {
+    const idea = {
+      ...ideaNoFile,
+      evaluation: {
+        ...baseEvaluation,
+        status: 'under_review' as const,
+        assigned_admin_id: 'admin1',
+        assigned_admin_name: 'Bob Admin',
+      },
+    }
+    ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(idea)
+    renderWithAuth('u1', 'submitter')
+    await waitFor(() => expect(screen.getByText('My Idea')).toBeInTheDocument())
+    expect(screen.getByText(/Bob Admin/)).toBeInTheDocument()
   })
 })

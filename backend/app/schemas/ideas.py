@@ -17,6 +17,7 @@ class EvaluationInfo(BaseModel):
     comment: Optional[str] = None
     evaluated_at: Optional[str] = None
     assigned_admin_id: Optional[str] = None
+    assigned_admin_name: Optional[str] = None
 
 
 class EvaluateIdeaRequest(BaseModel):
@@ -44,6 +45,7 @@ class IdeaSummaryResponse(BaseModel):
     submitted_at: str
     has_attachment: bool
     evaluation_status: EvaluationStatus
+    reviewer_name: Optional[str] = None
 
 
 class IdeaListResponse(BaseModel):

@@ -9,11 +9,14 @@ interface EvaluationFormProps {
 
 export function EvaluationForm({ idea, onSubmit }: EvaluationFormProps) {
   const isStateA = idea.evaluation.status === 'submitted'
+  const [selectedStatus, setSelectedStatus] = useState<EvaluationStatus>(
+    isStateA ? 'under_review' : idea.evaluation.status
+  )
   const [comment, setComment] = useState(idea.evaluation.comment ?? '')
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    const status: EvaluationStatus = isStateA ? 'under_review' : idea.evaluation.status
+    const status = isStateA ? 'under_review' : selectedStatus
     onSubmit({ status, comment: comment || undefined })
   }
 
@@ -24,12 +27,13 @@ export function EvaluationForm({ idea, onSubmit }: EvaluationFormProps) {
         <div>
           <label className="text-xs font-medium text-slate-500 mb-1 block">Status</label>
           <select
-            value={isStateA ? 'under_review' : idea.evaluation.status}
-            disabled={!isStateA}
+            value={isStateA ? 'under_review' : selectedStatus}
+            disabled={isStateA}
+            onChange={e => !isStateA && setSelectedStatus(e.target.value as EvaluationStatus)}
             className={
               isStateA
-                ? 'w-full px-4 py-2 border border-border rounded-lg text-sm transition-colors duration-200 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20'
-                : 'w-full px-4 py-2 border border-border rounded-lg text-sm bg-slate-50 text-slate-400 cursor-not-allowed'
+                ? 'w-full px-4 py-2 border border-border rounded-lg text-sm bg-slate-50 text-slate-400 cursor-not-allowed'
+                : 'w-full px-4 py-2 border border-border rounded-lg text-sm transition-colors duration-200 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20'
             }
           >
             {isStateA ? (

@@ -421,6 +421,74 @@ async def test_U14_list_ideas_status_filter_submitted(test_db):
 
 
 @pytest.mark.asyncio
+async def test_U16_build_evaluation_info_includes_assigned_admin_name(test_db):
+    """U-16: build_evaluation_info populates assigned_admin_name for both admin and submitter callers."""
+    from sqlalchemy import select as sa_select
+    from app.models.idea import Idea as IdeaModel
+
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
+    await idea_service.evaluate_idea(test_db, idea.id, admin, "under_review", None)
+
+    result = await test_db.execute(sa_select(IdeaModel).where(IdeaModel.id == idea.id))
+    idea_model = result.scalar_one()
+
+    eval_admin = idea_service.build_evaluation_info(idea_model, admin, admin_name=admin.full_name)
+    assert eval_admin.assigned_admin_name == admin.full_name
+
+    eval_sub = idea_service.build_evaluation_info(idea_model, submitter, admin_name=admin.full_name)
+    assert eval_sub.assigned_admin_name == admin.full_name
+
+
+@pytest.mark.asyncio
+async def test_U17_get_idea_includes_assigned_admin_name(test_db):
+    """U-17: get_idea populates assigned_admin_name after evaluate."""
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
+    await idea_service.evaluate_idea(test_db, idea.id, admin, "under_review", None)
+
+    result = await idea_service.get_idea(test_db, idea.id, caller=submitter)
+    assert result.evaluation.assigned_admin_name == admin.full_name
+
+
+@pytest.mark.asyncio
+async def test_U18_list_ideas_includes_reviewer_name_for_under_review(test_db):
+    """U-18: list_ideas populates reviewer_name for under_review ideas."""
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
+    await idea_service.evaluate_idea(test_db, idea.id, admin, "under_review", None)
+
+    result = await idea_service.list_ideas(test_db, page=1, limit=10)
+    assert result.ideas[0].reviewer_name == admin.full_name
+
+
+@pytest.mark.asyncio
+async def test_U19_list_ideas_reviewer_name_null_for_submitted(test_db):
+    """U-19: list_ideas has reviewer_name=None for submitted ideas."""
+    submitter = await create_test_user(test_db, role="submitter")
+    await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
+
+    result = await idea_service.list_ideas(test_db, page=1, limit=10)
+    assert result.ideas[0].reviewer_name is None
+
+
+@pytest.mark.asyncio
+async def test_U13b_non_owner_submitter_cannot_see_comment_on_accepted(test_db):
+    owner    = await create_test_user(test_db, role="submitter")
+    stranger = await create_test_user(test_db, role="submitter")
+    admin    = await create_test_user(test_db, role="admin")
+    idea = await idea_service.create_idea(test_db, owner, "Idea", "desc", "technology")
+    await idea_service.evaluate_idea(test_db, idea.id, admin, "under_review", None)
+    await idea_service.evaluate_idea(test_db, idea.id, admin, "accepted", "Congrats!")
+
+    result = await idea_service.get_idea(test_db, idea.id, caller=stranger)
+    assert result.evaluation.comment is None
+
+
+@pytest.mark.asyncio
 async def test_U15_list_ideas_status_filter_and_mine(test_db):
     """U-15: status_filter AND submitter_id_filter are ANDed together."""
     user1 = await create_test_user(test_db, role="submitter")

@@ -32,6 +32,9 @@ export function IdeasTable({ ideas }: { ideas: IdeaSummaryResponse[] }) {
             <TableHead className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide w-1/5">
               Status
             </TableHead>
+            <TableHead className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide w-1/6">
+              Reviewer
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -61,6 +64,9 @@ export function IdeasTable({ ideas }: { ideas: IdeaSummaryResponse[] }) {
                 {idea.evaluation_status && (
                   <EvaluationStatusBadge status={idea.evaluation_status} />
                 )}
+              </TableCell>
+              <TableCell className="px-4 py-3 text-sm text-slate-700">
+                {idea.reviewer_name ?? '—'}
               </TableCell>
             </TableRow>
           ))}

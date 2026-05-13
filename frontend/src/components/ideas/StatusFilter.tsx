@@ -8,6 +8,7 @@ interface StatusFilterProps {
 export function StatusFilter({ value, onChange }: StatusFilterProps) {
   return (
     <select
+      aria-label="Status"
       value={value ?? ''}
       onChange={e => onChange(e.target.value ? (e.target.value as EvaluationStatus) : undefined)}
       className="px-3 py-2 border border-border rounded-lg text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors duration-200"

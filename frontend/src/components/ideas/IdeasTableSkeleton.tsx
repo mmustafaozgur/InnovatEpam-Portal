@@ -5,6 +5,7 @@ function SkeletonRow() {
       <div className="h-5 rounded-full animate-shimmer w-20" />
       <div className="h-4 rounded animate-shimmer flex-1" />
       <div className="h-4 rounded animate-shimmer w-24" />
+      <div className="h-4 rounded animate-shimmer w-1/6" />
     </div>
   )
 }
@@ -18,6 +19,7 @@ export function IdeasTableSkeleton() {
           <div className="h-3 rounded animate-shimmer w-1/5" />
           <div className="h-3 rounded animate-shimmer w-1/5" />
           <div className="h-3 rounded animate-shimmer w-1/5" />
+          <div className="h-3 rounded animate-shimmer w-1/6" />
         </div>
       </div>
       {Array.from({ length: 5 }).map((_, i) => (

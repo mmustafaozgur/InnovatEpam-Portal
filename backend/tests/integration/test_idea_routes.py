@@ -525,6 +525,28 @@ async def test_I10_get_idea_submitter_under_review_comment_hidden(async_client, 
 
 
 @pytest.mark.asyncio
+async def test_I11b_get_idea_non_owner_submitter_accepted_comment_hidden(async_client, test_db):
+    owner    = await create_test_user(test_db, role="submitter")
+    stranger = await create_test_user(test_db, role="submitter")
+    admin    = await create_test_user(test_db, role="admin")
+
+    owner_client = await authenticated_client(async_client, test_db, owner)
+    idea_resp = await owner_client.post("/api/v1/ideas",
+        data={"title": "Idea", "description": "d", "category": "technology"})
+    idea_id = idea_resp.json()["id"]
+
+    admin_client = await authenticated_client(async_client, test_db, admin)
+    await admin_client.patch(f"/api/v1/ideas/{idea_id}/evaluate", json={"status": "under_review"})
+    await admin_client.patch(f"/api/v1/ideas/{idea_id}/evaluate",
+        json={"status": "accepted", "comment": "Great!"})
+
+    stranger_client = await authenticated_client(async_client, test_db, stranger)
+    resp = await stranger_client.get(f"/api/v1/ideas/{idea_id}")
+    assert resp.status_code == 200
+    assert resp.json()["evaluation"]["comment"] is None
+
+
+@pytest.mark.asyncio
 async def test_I11_get_idea_admin_under_review_comment_visible(async_client, test_db):
     """I-11: GET /ideas/{id} as admin when under_review → comment is present."""
     submitter = await create_test_user(test_db, role="submitter")
@@ -617,3 +639,50 @@ async def test_I09_list_ideas_invalid_status_422(async_client, test_db):
     client = await authenticated_client(async_client, test_db, user)
     resp = await client.get("/api/v1/ideas?status=invalid_value")
     assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Reviewer name — integration tests I-13 to I-14
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_I13_get_idea_includes_assigned_admin_name_after_evaluate(async_client, test_db):
+    """I-13: GET /ideas/{id} returns assigned_admin_name after under_review transition."""
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+
+    sub_client = await authenticated_client(async_client, test_db, submitter)
+    idea_resp = await sub_client.post(
+        "/api/v1/ideas",
+        data={"title": "Idea", "description": "d", "category": "technology"},
+    )
+    idea_id = idea_resp.json()["id"]
+
+    admin_client = await authenticated_client(async_client, test_db, admin)
+    await admin_client.patch(f"/api/v1/ideas/{idea_id}/evaluate", json={"status": "under_review"})
+
+    sub_client = await authenticated_client(async_client, test_db, submitter)
+    resp = await sub_client.get(f"/api/v1/ideas/{idea_id}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["evaluation"]["assigned_admin_name"] == admin.full_name
+
+
+@pytest.mark.asyncio
+async def test_I14_list_ideas_includes_reviewer_name_for_under_review(async_client, test_db):
+    """I-14: GET /ideas returns reviewer_name for under_review ideas, None for submitted."""
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+
+    sub_client = await authenticated_client(async_client, test_db, submitter)
+    r1 = await sub_client.post("/api/v1/ideas", data={"title": "Submitted", "description": "d", "category": "technology"})
+    r2 = await sub_client.post("/api/v1/ideas", data={"title": "Reviewed", "description": "d", "category": "other"})
+
+    admin_client = await authenticated_client(async_client, test_db, admin)
+    await admin_client.patch(f"/api/v1/ideas/{r2.json()['id']}/evaluate", json={"status": "under_review"})
+
+    resp = await sub_client.get("/api/v1/ideas")
+    assert resp.status_code == 200
+    ideas_by_title = {i["title"]: i for i in resp.json()["ideas"]}
+    assert ideas_by_title["Reviewed"]["reviewer_name"] == admin.full_name
+    assert ideas_by_title["Submitted"]["reviewer_name"] is None
