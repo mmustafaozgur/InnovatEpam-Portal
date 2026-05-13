@@ -1,8 +1,11 @@
 from __future__ import annotations
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field
 
-IdeaCategory = Literal["process_improvement", "technology", "cost_saving", "other"]
+IdeaCategory = Literal[
+    "process_improvement", "technology", "cost_saving",
+    "talent_development", "client_delivery", "workplace_culture", "other"
+]
 EvaluationStatus = Literal["submitted", "under_review", "accepted", "rejected"]
 
 
@@ -35,6 +38,7 @@ class IdeaDetailResponse(BaseModel):
     submitted_at: str
     file: Optional[FileInfo] = None
     evaluation: EvaluationInfo
+    extra_data: Optional[dict[str, Any]] = None
 
 
 class IdeaSummaryResponse(BaseModel):
@@ -46,6 +50,7 @@ class IdeaSummaryResponse(BaseModel):
     has_attachment: bool
     evaluation_status: EvaluationStatus
     reviewer_name: Optional[str] = None
+    extra_data: Optional[dict[str, Any]] = None
 
 
 class IdeaListResponse(BaseModel):

@@ -76,11 +76,13 @@ describe('SubmitIdeaPage', () => {
       id: 'idea-123',
       title: 'Great Idea',
       description: 'A desc',
-      category: 'technology',
+      category: 'other',
       submitter_id: 'u1',
       submitter_name: 'Test User',
       submitted_at: '2026-05-13T10:00:00Z',
       file: null,
+      evaluation: { status: 'submitted', comment: null, evaluated_at: null, assigned_admin_id: null, assigned_admin_name: null },
+      extra_data: null,
     }
     ;(submitIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mockIdea)
 
@@ -89,8 +91,8 @@ describe('SubmitIdeaPage', () => {
     await userEvent.type(screen.getByLabelText(/title/i), 'Great Idea')
     await userEvent.type(screen.getByLabelText(/description/i), 'A desc')
 
-    // Select category via the mocked native select
-    await userEvent.selectOptions(screen.getByLabelText('Category'), 'technology')
+    // Use "other" category — no extra fields required
+    await userEvent.selectOptions(screen.getByLabelText('Category'), 'other')
 
     await userEvent.click(screen.getByRole('button', { name: /submit/i }))
 

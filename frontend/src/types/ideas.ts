@@ -29,6 +29,7 @@ export interface IdeaDetailResponse {
   submitted_at: string
   file: FileInfo | null
   evaluation: EvaluationInfo
+  extra_data: Record<string, unknown> | null
 }
 
 export interface IdeaSummaryResponse {
@@ -40,6 +41,7 @@ export interface IdeaSummaryResponse {
   has_attachment: boolean
   evaluation_status: EvaluationStatus
   reviewer_name: string | null
+  extra_data: Record<string, unknown> | null
 }
 
 export interface IdeaListResponse {

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,7 +24,10 @@ from app.schemas.ideas import (
     IdeaSummaryResponse,
 )
 
-_VALID_CATEGORIES = {"process_improvement", "technology", "cost_saving", "other"}
+_VALID_CATEGORIES = {
+    "process_improvement", "technology", "cost_saving",
+    "talent_development", "client_delivery", "workplace_culture", "other",
+}
 _ACCEPTED_MIME = {
     "application/pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -93,6 +97,7 @@ async def create_idea(
     description: str,
     category: str,
     file: Optional[UploadFile] = None,
+    extra_data: Optional[dict] = None,
 ) -> IdeaDetailResponse:
     if not title:
         raise ValueError("title is required")
@@ -141,6 +146,7 @@ async def create_idea(
         attachment_stored_name=attachment_stored_name,
         attachment_mime_type=attachment_mime_type,
         attachment_size=attachment_size,
+        extra_data=json.dumps(extra_data) if extra_data is not None else None,
     )
     db.add(idea)
     await db.commit()
@@ -162,6 +168,7 @@ async def create_idea(
             assigned_admin_id=None,
             assigned_admin_name=None,
         ),
+        extra_data=json.loads(idea.extra_data) if idea.extra_data is not None else None,
     )
 
 
@@ -233,6 +240,7 @@ async def evaluate_idea(
             mime_type=idea.attachment_mime_type or "",
         ) if idea.attachment_stored_name else None,
         evaluation=build_evaluation_info(idea, acting_admin, admin_name=acting_admin.full_name),
+        extra_data=json.loads(idea.extra_data) if idea.extra_data is not None else None,
     )
 
 
@@ -287,6 +295,7 @@ async def list_ideas(
             has_attachment=row.Idea.attachment_stored_name is not None,
             evaluation_status=row.Idea.evaluation_status,
             reviewer_name=admin_names.get(row.Idea.assigned_admin_id) if row.Idea.assigned_admin_id else None,
+            extra_data=json.loads(row.Idea.extra_data) if row.Idea.extra_data is not None else None,
         )
         for row in rows
     ]
@@ -343,4 +352,5 @@ async def get_idea(
         submitted_at=idea.submitted_at,
         file=file_info,
         evaluation=evaluation,
+        extra_data=json.loads(idea.extra_data) if idea.extra_data is not None else None,
     )

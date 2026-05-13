@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -11,6 +12,7 @@ from app.database import get_db
 from app.models.idea import Idea
 from app.models.user import User
 from app.schemas.ideas import EvaluateIdeaRequest, EvaluationStatus, IdeaDetailResponse, IdeaListResponse
+from app.schemas.extra_data import validate_extra_data
 from app.services import idea_service
 from sqlalchemy import select
 
@@ -22,6 +24,7 @@ async def submit_idea(
     title: str = Form(...),
     description: str = Form(...),
     category: str = Form(...),
+    extra_data: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -32,7 +35,18 @@ async def submit_idea(
     if file is not None and file.filename:
         idea_service.validate_file(file)
 
-    return await idea_service.create_idea(db, current_user, title, description, category, file)
+    parsed_extra: Optional[dict] = None
+    if extra_data is not None:
+        try:
+            parsed_extra = json.loads(extra_data)
+        except (json.JSONDecodeError, ValueError):
+            raise HTTPException(status_code=422, detail={"extra_data": {"__root__": "Must be valid JSON."}})
+
+    errors = validate_extra_data(category, parsed_extra)
+    if errors:
+        raise HTTPException(status_code=422, detail={"extra_data": errors})
+
+    return await idea_service.create_idea(db, current_user, title, description, category, file, extra_data=parsed_extra)
 
 
 @router.get("", response_model=IdeaListResponse)

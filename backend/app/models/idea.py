@@ -28,9 +28,12 @@ class Idea(Base):
     evaluated_at = Column(String, nullable=True)
     assigned_admin_id = Column(String, nullable=True)
 
+    extra_data = Column(String, nullable=True)
+
     __table_args__ = (
         CheckConstraint(
-            "category IN ('process_improvement','technology','cost_saving','other')",
+            "category IN ('process_improvement','technology','cost_saving',"
+            "'talent_development','client_delivery','workplace_culture','other')",
             name="ck_ideas_category",
         ),
         CheckConstraint("length(title) <= 150", name="ck_ideas_title_length"),

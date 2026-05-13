@@ -7,6 +7,7 @@ import { CategoryBadge } from '@/components/ideas/CategoryBadge'
 import { FileDownloadBlock } from '@/components/ideas/FileDownloadBlock'
 import { EvaluationStatusBadge } from '@/components/ideas/EvaluationStatusBadge'
 import { EvaluationForm } from '@/components/ideas/EvaluationForm'
+import { ExtraDataDetails } from '@/components/ideas/ExtraDataDetails'
 
 export default function IdeaDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -65,6 +66,8 @@ export default function IdeaDetailPage() {
         <p className="font-body text-base text-slate-700 leading-relaxed max-w-prose mt-6">
           {idea.description}
         </p>
+
+        <ExtraDataDetails category={idea.category} extra_data={idea.extra_data} />
 
         {canDownload && idea.file && (
           <div className="mt-10 pt-6 border-t border-border">

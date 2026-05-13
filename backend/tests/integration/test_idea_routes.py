@@ -13,7 +13,7 @@ from tests.conftest import create_test_user, authenticated_client
 async def test_submit_idea_submitter_201(async_client, test_db):
     user = await create_test_user(test_db, role="submitter")
     client = await authenticated_client(async_client, test_db, user)
-    data = {"title": "My Idea", "description": "A great idea", "category": "technology"}
+    data = {"title": "My Idea", "description": "A great idea", "category": "other"}
     resp = await client.post("/api/v1/ideas", data=data)
     assert resp.status_code == 201
     body = resp.json()
@@ -27,7 +27,7 @@ async def test_submit_idea_submitter_201(async_client, test_db):
 async def test_submit_idea_missing_title_400(async_client, test_db):
     user = await create_test_user(test_db, role="submitter")
     client = await authenticated_client(async_client, test_db, user)
-    data = {"description": "A desc", "category": "technology"}
+    data = {"description": "A desc", "category": "other"}
     resp = await client.post("/api/v1/ideas", data=data)
     assert resp.status_code in (400, 422)
 
@@ -36,7 +36,7 @@ async def test_submit_idea_missing_title_400(async_client, test_db):
 async def test_submit_idea_missing_description_400(async_client, test_db):
     user = await create_test_user(test_db, role="submitter")
     client = await authenticated_client(async_client, test_db, user)
-    data = {"title": "Title", "category": "technology"}
+    data = {"title": "Title", "category": "other"}
     resp = await client.post("/api/v1/ideas", data=data)
     assert resp.status_code in (400, 422)
 
@@ -54,14 +54,14 @@ async def test_submit_idea_missing_category_400(async_client, test_db):
 async def test_submit_idea_evaluator_403(async_client, test_db):
     user = await create_test_user(test_db, role="admin")
     client = await authenticated_client(async_client, test_db, user)
-    data = {"title": "My Idea", "description": "desc", "category": "technology"}
+    data = {"title": "My Idea", "description": "desc", "category": "other"}
     resp = await client.post("/api/v1/ideas", data=data)
     assert resp.status_code == 403
 
 
 @pytest.mark.asyncio
 async def test_submit_idea_unauthenticated_401(async_client, test_db):
-    data = {"title": "My Idea", "description": "desc", "category": "technology"}
+    data = {"title": "My Idea", "description": "desc", "category": "other"}
     resp = await async_client.post("/api/v1/ideas", data=data)
     assert resp.status_code == 401
 
@@ -79,7 +79,7 @@ async def test_submit_idea_with_pdf_201(async_client, test_db, tmp_path, monkeyp
     client = await authenticated_client(async_client, test_db, user)
     pdf_bytes = b"%PDF-1.4 fake"
     files = {"file": ("test.pdf", io.BytesIO(pdf_bytes), "application/pdf")}
-    data = {"title": "Idea with file", "description": "desc", "category": "technology"}
+    data = {"title": "Idea with file", "description": "desc", "category": "other"}
     resp = await client.post("/api/v1/ideas", data=data, files=files)
     assert resp.status_code == 201
     body = resp.json()
@@ -92,7 +92,7 @@ async def test_submit_idea_wrong_mime_400(async_client, test_db):
     user = await create_test_user(test_db, role="submitter")
     client = await authenticated_client(async_client, test_db, user)
     files = {"file": ("bad.txt", io.BytesIO(b"text"), "text/plain")}
-    data = {"title": "Idea", "description": "desc", "category": "technology"}
+    data = {"title": "Idea", "description": "desc", "category": "other"}
     resp = await client.post("/api/v1/ideas", data=data, files=files)
     assert resp.status_code == 400
 
@@ -103,7 +103,7 @@ async def test_submit_idea_oversized_file_400(async_client, test_db):
     client = await authenticated_client(async_client, test_db, user)
     big_data = b"x" * (11 * 1024 * 1024)
     files = {"file": ("big.pdf", io.BytesIO(big_data), "application/pdf")}
-    data = {"title": "Idea", "description": "desc", "category": "technology"}
+    data = {"title": "Idea", "description": "desc", "category": "other"}
     resp = await client.post("/api/v1/ideas", data=data, files=files)
     assert resp.status_code == 400
 
@@ -112,7 +112,7 @@ async def test_submit_idea_oversized_file_400(async_client, test_db):
 async def test_submit_idea_no_file_null_in_response(async_client, test_db):
     user = await create_test_user(test_db, role="submitter")
     client = await authenticated_client(async_client, test_db, user)
-    data = {"title": "No File Idea", "description": "desc", "category": "cost_saving"}
+    data = {"title": "No File Idea", "description": "desc", "category": "other"}
     resp = await client.post("/api/v1/ideas", data=data)
     assert resp.status_code == 201
     assert resp.json()["file"] is None
@@ -131,7 +131,7 @@ async def test_download_attachment_submitter_200(async_client, test_db, tmp_path
     client = await authenticated_client(async_client, test_db, user)
     pdf_bytes = b"%PDF-1.4 fake"
     files = {"file": ("test.pdf", io.BytesIO(pdf_bytes), "application/pdf")}
-    data = {"title": "Idea", "description": "desc", "category": "technology"}
+    data = {"title": "Idea", "description": "desc", "category": "other"}
     create_resp = await client.post("/api/v1/ideas", data=data, files=files)
     assert create_resp.status_code == 201
     idea_id = create_resp.json()["id"]
@@ -151,7 +151,7 @@ async def test_download_attachment_evaluator_200(async_client, test_db, tmp_path
     sub_client = await authenticated_client(async_client, test_db, submitter)
     pdf_bytes = b"%PDF-1.4 fake"
     files = {"file": ("test.pdf", io.BytesIO(pdf_bytes), "application/pdf")}
-    data = {"title": "Idea", "description": "desc", "category": "technology"}
+    data = {"title": "Idea", "description": "desc", "category": "other"}
     create_resp = await sub_client.post("/api/v1/ideas", data=data, files=files)
     assert create_resp.status_code == 201
     idea_id = create_resp.json()["id"]
@@ -172,7 +172,7 @@ async def test_download_attachment_other_submitter_403(async_client, test_db, tm
     client_a = await authenticated_client(async_client, test_db, submitter_a)
     pdf_bytes = b"%PDF-1.4 fake"
     files = {"file": ("test.pdf", io.BytesIO(pdf_bytes), "application/pdf")}
-    data = {"title": "A's idea", "description": "desc", "category": "technology"}
+    data = {"title": "A's idea", "description": "desc", "category": "other"}
     create_resp = await client_a.post("/api/v1/ideas", data=data, files=files)
     assert create_resp.status_code == 201
     idea_id = create_resp.json()["id"]
@@ -251,7 +251,7 @@ async def test_list_ideas_unauthenticated_401(async_client, test_db):
 async def test_get_idea_detail_200(async_client, test_db):
     user = await create_test_user(test_db, role="submitter")
     client = await authenticated_client(async_client, test_db, user)
-    data = {"title": "Detail Test", "description": "desc", "category": "technology"}
+    data = {"title": "Detail Test", "description": "desc", "category": "other"}
     create_resp = await client.post("/api/v1/ideas", data=data)
     idea_id = create_resp.json()["id"]
 
@@ -271,7 +271,7 @@ async def test_get_idea_detail_with_file(async_client, test_db, tmp_path, monkey
     user = await create_test_user(test_db, role="submitter")
     client = await authenticated_client(async_client, test_db, user)
     files = {"file": ("a.pdf", io.BytesIO(b"%PDF"), "application/pdf")}
-    data = {"title": "With File", "description": "desc", "category": "cost_saving"}
+    data = {"title": "With File", "description": "desc", "category": "other"}
     create_resp = await client.post("/api/v1/ideas", data=data, files=files)
     idea_id = create_resp.json()["id"]
 
@@ -303,7 +303,7 @@ async def test_mine_filter_returns_only_submitters_ideas(async_client, test_db):
     user1 = await create_test_user(test_db, role="submitter")
     user2 = await create_test_user(test_db, role="submitter")
     client = await authenticated_client(async_client, test_db, user1)
-    await client.post("/api/v1/ideas", data={"title": "U1 Idea", "description": "d", "category": "technology"})
+    await client.post("/api/v1/ideas", data={"title": "U1 Idea", "description": "d", "category": "other"})
     client = await authenticated_client(async_client, test_db, user2)
     await client.post("/api/v1/ideas", data={"title": "U2 Idea", "description": "d", "category": "other"})
     client = await authenticated_client(async_client, test_db, user1)
@@ -320,7 +320,7 @@ async def test_mine_filter_with_pagination(async_client, test_db):
     other = await create_test_user(test_db, role="submitter")
     client = await authenticated_client(async_client, test_db, user)
     for i in range(3):
-        await client.post("/api/v1/ideas", data={"title": f"Mine {i}", "description": "d", "category": "technology"})
+        await client.post("/api/v1/ideas", data={"title": f"Mine {i}", "description": "d", "category": "other"})
     client = await authenticated_client(async_client, test_db, other)
     await client.post("/api/v1/ideas", data={"title": "Other", "description": "d", "category": "other"})
     client = await authenticated_client(async_client, test_db, user)
@@ -336,7 +336,7 @@ async def test_list_ideas_without_mine_returns_all(async_client, test_db):
     user1 = await create_test_user(test_db, role="submitter")
     user2 = await create_test_user(test_db, role="submitter")
     client = await authenticated_client(async_client, test_db, user1)
-    await client.post("/api/v1/ideas", data={"title": "A", "description": "d", "category": "technology"})
+    await client.post("/api/v1/ideas", data={"title": "A", "description": "d", "category": "other"})
     client = await authenticated_client(async_client, test_db, user2)
     await client.post("/api/v1/ideas", data={"title": "B", "description": "d", "category": "other"})
     client = await authenticated_client(async_client, test_db, user1)
@@ -372,7 +372,7 @@ async def test_I02_evaluate_submitter_403(async_client, test_db):
     client = await authenticated_client(async_client, test_db, submitter)
     idea_resp = await client.post(
         "/api/v1/ideas",
-        data={"title": "Idea", "description": "d", "category": "technology"},
+        data={"title": "Idea", "description": "d", "category": "other"},
     )
     idea_id = idea_resp.json()["id"]
 
@@ -389,7 +389,7 @@ async def test_I03_evaluate_admin_valid_transition_200(async_client, test_db):
     sub_client = await authenticated_client(async_client, test_db, submitter)
     idea_resp = await sub_client.post(
         "/api/v1/ideas",
-        data={"title": "Idea", "description": "d", "category": "technology"},
+        data={"title": "Idea", "description": "d", "category": "other"},
     )
     idea_id = idea_resp.json()["id"]
 
@@ -414,7 +414,7 @@ async def test_I04_evaluate_invalid_transition_400(async_client, test_db):
     sub_client = await authenticated_client(async_client, test_db, submitter)
     idea_resp = await sub_client.post(
         "/api/v1/ideas",
-        data={"title": "Idea", "description": "d", "category": "technology"},
+        data={"title": "Idea", "description": "d", "category": "other"},
     )
     idea_id = idea_resp.json()["id"]
 
@@ -435,7 +435,7 @@ async def test_I05_evaluate_locked_idea_409(async_client, test_db):
     sub_client = await authenticated_client(async_client, test_db, submitter)
     idea_resp = await sub_client.post(
         "/api/v1/ideas",
-        data={"title": "Idea", "description": "d", "category": "technology"},
+        data={"title": "Idea", "description": "d", "category": "other"},
     )
     idea_id = idea_resp.json()["id"]
 
@@ -457,7 +457,7 @@ async def test_I06_evaluate_non_assigned_admin_403(async_client, test_db):
     sub_client = await authenticated_client(async_client, test_db, submitter)
     idea_resp = await sub_client.post(
         "/api/v1/ideas",
-        data={"title": "Idea", "description": "d", "category": "technology"},
+        data={"title": "Idea", "description": "d", "category": "other"},
     )
     idea_id = idea_resp.json()["id"]
 
@@ -478,7 +478,7 @@ async def test_I12_evaluate_comment_over_1000_chars_422(async_client, test_db):
     sub_client = await authenticated_client(async_client, test_db, submitter)
     idea_resp = await sub_client.post(
         "/api/v1/ideas",
-        data={"title": "Idea", "description": "d", "category": "technology"},
+        data={"title": "Idea", "description": "d", "category": "other"},
     )
     idea_id = idea_resp.json()["id"]
 
@@ -504,7 +504,7 @@ async def test_I10_get_idea_submitter_under_review_comment_hidden(async_client, 
     sub_client = await authenticated_client(async_client, test_db, submitter)
     idea_resp = await sub_client.post(
         "/api/v1/ideas",
-        data={"title": "Idea", "description": "d", "category": "technology"},
+        data={"title": "Idea", "description": "d", "category": "other"},
     )
     idea_id = idea_resp.json()["id"]
 
@@ -532,7 +532,7 @@ async def test_I11b_get_idea_non_owner_submitter_accepted_comment_hidden(async_c
 
     owner_client = await authenticated_client(async_client, test_db, owner)
     idea_resp = await owner_client.post("/api/v1/ideas",
-        data={"title": "Idea", "description": "d", "category": "technology"})
+        data={"title": "Idea", "description": "d", "category": "other"})
     idea_id = idea_resp.json()["id"]
 
     admin_client = await authenticated_client(async_client, test_db, admin)
@@ -555,7 +555,7 @@ async def test_I11_get_idea_admin_under_review_comment_visible(async_client, tes
     sub_client = await authenticated_client(async_client, test_db, submitter)
     idea_resp = await sub_client.post(
         "/api/v1/ideas",
-        data={"title": "Idea", "description": "d", "category": "technology"},
+        data={"title": "Idea", "description": "d", "category": "other"},
     )
     idea_id = idea_resp.json()["id"]
 
@@ -583,7 +583,7 @@ async def test_I07_list_ideas_status_filter_submitted(async_client, test_db):
     admin = await create_test_user(test_db, role="admin")
 
     sub_client = await authenticated_client(async_client, test_db, submitter)
-    r1 = await sub_client.post("/api/v1/ideas", data={"title": "Submitted", "description": "d", "category": "technology"})
+    r1 = await sub_client.post("/api/v1/ideas", data={"title": "Submitted", "description": "d", "category": "other"})
     r2 = await sub_client.post("/api/v1/ideas", data={"title": "Reviewed", "description": "d", "category": "other"})
 
     admin_client = await authenticated_client(async_client, test_db, admin)
@@ -606,7 +606,7 @@ async def test_I08_list_ideas_status_and_mine_and_semantics(async_client, test_d
 
     # Submit user1's idea first, then immediately use it
     c1 = await authenticated_client(async_client, test_db, user1)
-    r1 = await c1.post("/api/v1/ideas", data={"title": "U1 Sub", "description": "d", "category": "technology"})
+    r1 = await c1.post("/api/v1/ideas", data={"title": "U1 Sub", "description": "d", "category": "other"})
     idea1_id = r1.json()["id"]
 
     # Submit user2's idea
@@ -654,7 +654,7 @@ async def test_I13_get_idea_includes_assigned_admin_name_after_evaluate(async_cl
     sub_client = await authenticated_client(async_client, test_db, submitter)
     idea_resp = await sub_client.post(
         "/api/v1/ideas",
-        data={"title": "Idea", "description": "d", "category": "technology"},
+        data={"title": "Idea", "description": "d", "category": "other"},
     )
     idea_id = idea_resp.json()["id"]
 
@@ -675,7 +675,7 @@ async def test_I14_list_ideas_includes_reviewer_name_for_under_review(async_clie
     admin = await create_test_user(test_db, role="admin")
 
     sub_client = await authenticated_client(async_client, test_db, submitter)
-    r1 = await sub_client.post("/api/v1/ideas", data={"title": "Submitted", "description": "d", "category": "technology"})
+    r1 = await sub_client.post("/api/v1/ideas", data={"title": "Submitted", "description": "d", "category": "other"})
     r2 = await sub_client.post("/api/v1/ideas", data={"title": "Reviewed", "description": "d", "category": "other"})
 
     admin_client = await authenticated_client(async_client, test_db, admin)
