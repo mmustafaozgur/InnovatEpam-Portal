@@ -110,8 +110,10 @@ frontend/src/
 │       └── IdeaDetailPage.test.tsx      MODIFIED  attachments section rendering
 ├── types/
 │   └── ideas.ts                         MODIFIED  AttachmentInfo; IdeaDetailResponse.attachments[]; remove file field
-└── api/
-    └── ideas.ts                         MODIFIED  multi-file FormData append; remove legacy attachment URL helper
+├── api/
+│   └── ideas.ts                         MODIFIED  multi-file FormData append; remove legacy attachment URL helper
+└── components/ideas/
+    └── IdeasTable.tsx                   MODIFIED  attachment_count replaces has_attachment; badge/count display
 ```
 
 ---

@@ -96,7 +96,7 @@ Any user viewing an idea's detail page can see the attachments section listing a
 - **FR-006**: For each attached non-image file, the form MUST display a tile containing a file-type icon and the filename before submission.
 - **FR-007**: Each attachment tile MUST provide an individual remove action that deletes only that file's tile without affecting other tiles or any other form field.
 - **FR-008**: The system MUST store uploaded files on the server filesystem upon idea submission.
-- **FR-009**: The system MUST persist the following metadata for each attachment: original filename, MIME type, file size in bytes, and server-side storage path, associated with the parent idea record.
+- **FR-009**: The system MUST persist the following metadata for each attachment: original filename, MIME type, file size in bytes, and server-side stored filename (from which the full storage path is derived via `settings.upload_path(idea_id, stored_name)`), associated with the parent idea record.
 - **FR-010**: The idea detail page MUST display attached images inline within an attachments section.
 - **FR-011**: The idea detail page MUST display non-image attachments (PDF, video, presentation, document) as a file-type icon and the original filename to all viewers. A download link MUST be shown only to the original submitter and admin users.
 - **FR-016**: The system MUST enforce download access at the point the download is requested — not only by hiding the link in the UI. A request to download an attachment by an unauthorised user MUST be denied with an appropriate access-denied response.
@@ -118,7 +118,7 @@ Any user viewing an idea's detail page can see the attachments section listing a
 ### Measurable Outcomes
 
 - **SC-001**: Submitters can attach up to 5 files during a single idea submission without leaving the form or reloading the page.
-- **SC-002**: File-type or size-limit validation feedback is displayed within 2 seconds of a rejected file being selected.
+- **SC-002**: File-type or size-limit validation feedback is displayed immediately (synchronous client-side state update) when a rejected file is selected; no network round-trip is required, so the 2-second threshold is inherently satisfied and does not require a dedicated performance test.
 - **SC-003**: Preview tiles appear for all accepted attached files before the form is submitted; image tiles show a visual thumbnail and non-image tiles show a recognisable file-type icon and filename.
 - **SC-004**: All attachment files and their metadata are accessible on the idea detail page immediately after the idea is submitted, with no additional user action required.
 - **SC-005**: 100% of existing ideas (submitted before this feature) continue to load the detail page without errors.
