@@ -73,3 +73,21 @@ describe('StageBadge', () => {
     ).not.toThrow()
   })
 })
+
+// ---------------------------------------------------------------------------
+// T034a — StageBadge: smooth color transition classes
+// ---------------------------------------------------------------------------
+
+describe('StageBadge — transition classes (T034a)', () => {
+  it('badge has transition-colors class', () => {
+    const { container } = render(<StageBadge stage="new_idea" />)
+    const badge = container.firstChild as HTMLElement
+    expect(badge.className).toContain('transition-colors')
+  })
+
+  it('badge has duration-150 class', () => {
+    const { container } = render(<StageBadge stage="new_idea" />)
+    const badge = container.firstChild as HTMLElement
+    expect(badge.className).toContain('duration-150')
+  })
+})

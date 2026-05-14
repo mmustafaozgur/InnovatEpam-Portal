@@ -163,7 +163,7 @@ async def test_U14_list_ideas_stage_filter_new_idea(test_db):
     idea2 = await idea_service.create_idea(test_db, submitter, "Idea 2", "desc", "other")
     await idea_service.advance_stage(test_db, idea2.id, admin.id, comment=None, outcome=None)
 
-    result = await idea_service.list_ideas(test_db, stage_filter="new_idea")
+    result = await idea_service.list_ideas(test_db, stage_filter=["new_idea"])
     assert result.total == 1
     assert result.ideas[0].id == idea1.id
     assert result.ideas[0].current_stage == "new_idea"
@@ -183,7 +183,7 @@ async def test_U15_list_ideas_stage_filter_and_mine(test_db):
     await idea_service.advance_stage(test_db, idea_u1_adv.id, admin.id, comment=None, outcome=None)
 
     result = await idea_service.list_ideas(
-        test_db, submitter_id_filter=user1.id, stage_filter="new_idea"
+        test_db, submitter_id_filter=user1.id, stage_filter=["new_idea"]
     )
     assert result.total == 1
     assert result.ideas[0].id == idea_u1_new.id
@@ -433,3 +433,34 @@ async def test_AS07_advance_stage_creates_immutable_stage_review_record(test_db)
     assert len(result.stage_reviews) == 2
     stages = [r.stage for r in result.stage_reviews]
     assert stages == ["initial_screening", "technical_review"]
+
+
+# ---------------------------------------------------------------------------
+# T004 — Multi-stage filter unit test (TDD Gate — write before backend change)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_list_ideas_multi_stage_filter(test_db):
+    """T004: stage_filter as a list uses .in_() to filter ideas by multiple stages."""
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+
+    idea_new = await idea_service.create_idea(test_db, submitter, "New Idea", "desc", "technology")
+    idea_screening = await idea_service.create_idea(test_db, submitter, "Screening Idea", "desc", "technology")
+    idea_tech = await idea_service.create_idea(test_db, submitter, "Tech Idea", "desc", "technology")
+
+    # Advance idea_screening to initial_screening
+    await idea_service.advance_stage(test_db, idea_screening.id, admin.id, comment=None, outcome=None)
+    # Advance idea_tech to technical_review
+    await idea_service.advance_stage(test_db, idea_tech.id, admin.id, comment=None, outcome=None)
+    await idea_service.advance_stage(test_db, idea_tech.id, admin.id, comment=None, outcome=None)
+
+    result = await idea_service.list_ideas(
+        test_db, stage_filter=["new_idea", "technical_review"]
+    )
+
+    returned_ids = {idea.id for idea in result.ideas}
+    assert idea_new.id in returned_ids
+    assert idea_tech.id in returned_ids
+    assert idea_screening.id not in returned_ids
+    assert result.total == 2

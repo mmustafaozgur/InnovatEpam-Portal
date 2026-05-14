@@ -11,8 +11,27 @@
   background-size: 800px 100%;
   animation: shimmer 1.4s ease-in-out infinite;
 }
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-slideUpFade {
+  animation: slideUpFade 250ms ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-shimmer { animation: none; background: #f1f5f9; }
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
 @import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap');

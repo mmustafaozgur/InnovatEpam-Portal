@@ -227,3 +227,19 @@ describe('IdeaDetailPage — reviewer name', () => {
     expect(screen.getByText(/Bob Admin/)).toBeInTheDocument()
   })
 })
+
+// ---------------------------------------------------------------------------
+// T032 — IdeaDetailPage: animate-slideUpFade on stage content area
+// ---------------------------------------------------------------------------
+
+describe('IdeaDetailPage — entrance animation (T032)', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('stage content area has animate-slideUpFade class on mount', async () => {
+    vi.mocked(getIdea).mockResolvedValueOnce(baseIdea)
+    const { container } = renderWithAuth('u1', 'submitter')
+    await waitFor(() => expect(screen.getByText('My Idea')).toBeInTheDocument())
+    const animatedEl = container.querySelector('.animate-slideUpFade')
+    expect(animatedEl).not.toBeNull()
+  })
+})

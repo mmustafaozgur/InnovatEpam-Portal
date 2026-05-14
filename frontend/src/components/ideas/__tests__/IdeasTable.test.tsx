@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { IdeasTable } from '../IdeasTable'
 import type { IdeaSummaryResponse } from '@/types/ideas'
@@ -13,6 +13,7 @@ function makeIdea(overrides: Partial<IdeaSummaryResponse> = {}): IdeaSummaryResp
     attachment_count: 0,
     current_stage: 'new_idea',
     reviewer_name: null,
+    outcome: null,
     extra_data: null,
     ...overrides,
   }
@@ -27,9 +28,23 @@ function renderTable(ideas: IdeaSummaryResponse[]) {
 }
 
 describe('IdeasTable', () => {
-  it('renders idea title as a link', () => {
+  // T025: column order assertions
+  it('renders column headers in order: Stage, Title, Category, Submitted By, Date, Actions', () => {
     renderTable([makeIdea()])
-    expect(screen.getByRole('link', { name: 'Test Idea' })).toBeInTheDocument()
+    const headers = screen.getAllByRole('columnheader').map(h => h.textContent?.trim())
+    expect(headers).toEqual(['Stage', 'Title', 'Category', 'Submitted By', 'Date', 'Actions'])
+  })
+
+  it('renders a "View" link in the Actions column', () => {
+    renderTable([makeIdea()])
+    expect(screen.getByRole('link', { name: /view/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /view/i })).toHaveAttribute('href', '/ideas/i1')
+  })
+
+  it('title is plain text (not a link itself)', () => {
+    renderTable([makeIdea()])
+    expect(screen.queryByRole('link', { name: 'Test Idea' })).not.toBeInTheDocument()
+    expect(screen.getByText('Test Idea')).toBeInTheDocument()
   })
 
   it('shows attachment count badge when attachment_count > 0', () => {
@@ -53,13 +68,8 @@ describe('IdeasTable', () => {
     expect(screen.getByText('Final Selection')).toBeInTheDocument()
   })
 
-  it('renders reviewer name when present', () => {
-    renderTable([makeIdea({ reviewer_name: 'Bob Admin' })])
-    expect(screen.getByText('Bob Admin')).toBeInTheDocument()
-  })
-
-  it('renders "—" when reviewer_name is null', () => {
-    renderTable([makeIdea({ reviewer_name: null })])
-    expect(screen.getByText('—')).toBeInTheDocument()
+  it('renders submitter name in "Submitted By" column', () => {
+    renderTable([makeIdea({ submitter_name: 'Alice' })])
+    expect(screen.getByText('Alice')).toBeInTheDocument()
   })
 })

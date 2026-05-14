@@ -160,36 +160,35 @@ describe('IdeasPage — mine filter', () => {
 })
 
 // ---------------------------------------------------------------------------
-// StageFilter integration tests
+// StageFilterCards integration tests (replaces old StageFilter dropdown tests)
 // ---------------------------------------------------------------------------
 
-describe('IdeasPage — stage filter', () => {
+describe('IdeasPage — StageFilterCards integration', () => {
   beforeEach(() => { vi.clearAllMocks() })
 
-  it('renders StageFilter dropdown', async () => {
+  it('renders 5 stage filter card buttons', async () => {
     vi.mocked(listIdeas).mockResolvedValueOnce(emptyList)
     renderWithAuth('submitter')
     await waitFor(() => expect(listIdeas).toHaveBeenCalled())
-    expect(screen.getByRole('combobox', { name: /stage/i })).toBeInTheDocument()
+    const buttons = screen.getAllByRole('button').filter(b => b.hasAttribute('aria-pressed'))
+    expect(buttons).toHaveLength(5)
   })
 
-  it('changing stage filter passes stage param to listIdeas', async () => {
+  it('clicking a stage card passes stages array to listIdeas', async () => {
     vi.mocked(listIdeas).mockResolvedValue(emptyList)
     renderWithAuth('submitter')
     await waitFor(() => expect(listIdeas).toHaveBeenCalled())
-    const select = screen.getByRole('combobox', { name: /stage/i })
-    fireEvent.change(select, { target: { value: 'final_selection' } })
+
+    fireEvent.click(screen.getByRole('button', { name: /final selection/i }))
+
     await waitFor(() => {
-      expect(listIdeas).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.anything(),
-        expect.anything(),
-        'final_selection',
-      )
+      const calls = vi.mocked(listIdeas).mock.calls
+      const lastCall = calls[calls.length - 1]
+      expect(lastCall[3]).toEqual(['final_selection'])
     })
   })
 
-  it('mine toggle + stage filter simultaneously sends both params to listIdeas', async () => {
+  it('mine toggle + stage card simultaneously sends both params to listIdeas', async () => {
     vi.mocked(listIdeas).mockResolvedValue(emptyList)
     renderWithAuth('submitter')
     await waitFor(() => expect(listIdeas).toHaveBeenCalled())
@@ -198,16 +197,102 @@ describe('IdeasPage — stage filter', () => {
     const mineSelect = screen.getByRole('combobox', { name: /scope/i })
     fireEvent.change(mineSelect, { target: { value: 'mine' } })
 
-    // Then set stage filter
+    // Then click a stage filter card
     await waitFor(() => expect(listIdeas).toHaveBeenCalled())
-    const stageSelect = screen.getByRole('combobox', { name: /stage/i })
-    fireEvent.change(stageSelect, { target: { value: 'new_idea' } })
+    fireEvent.click(screen.getByRole('button', { name: /new idea/i }))
 
     await waitFor(() => {
       const calls = vi.mocked(listIdeas).mock.calls
       const lastCall = calls[calls.length - 1]
       expect(lastCall[2]).toBe(true)
-      expect(lastCall[3]).toBe('new_idea')
+      expect(lastCall[3]).toEqual(['new_idea'])
     })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// T012 — IdeasPage with StageFilterCards (URL persistence)
+// ---------------------------------------------------------------------------
+
+describe('IdeasPage — StageFilterCards URL persistence', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('single card selected → URL has ?stage=<value>', async () => {
+    vi.mocked(listIdeas).mockResolvedValue(emptyList)
+    renderWithAuth('submitter')
+    await waitFor(() => expect(listIdeas).toHaveBeenCalled())
+
+    const newIdeaBtn = screen.getByRole('button', { name: /new idea/i })
+    fireEvent.click(newIdeaBtn)
+
+    await waitFor(() => {
+      const params = screen.getByTestId('search-params').textContent ?? ''
+      expect(params).toContain('stage=new_idea')
+    })
+  })
+
+  it('two cards selected → URL has two stage= params', async () => {
+    vi.mocked(listIdeas).mockResolvedValue(emptyList)
+    renderWithAuth('submitter')
+    await waitFor(() => expect(listIdeas).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByRole('button', { name: /new idea/i }))
+    await waitFor(() => expect(screen.getByTestId('search-params').textContent).toContain('stage=new_idea'))
+
+    fireEvent.click(screen.getByRole('button', { name: /technical review/i }))
+    await waitFor(() => {
+      const params = screen.getByTestId('search-params').textContent ?? ''
+      expect(params).toContain('stage=new_idea')
+      expect(params).toContain('stage=technical_review')
+    })
+  })
+
+  it('deselect all → no stage= in URL', async () => {
+    vi.mocked(listIdeas).mockResolvedValue(emptyList)
+    renderWithAuth('submitter', '/ideas?stage=new_idea')
+    await waitFor(() => expect(listIdeas).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByRole('button', { name: /new idea/i }))
+    await waitFor(() => {
+      const params = screen.getByTestId('search-params').textContent ?? ''
+      expect(params).not.toContain('stage=')
+    })
+  })
+
+  it('on mount with ?stage=new_idea, that card shows selected state (aria-pressed=true)', async () => {
+    vi.mocked(listIdeas).mockResolvedValue(emptyList)
+    renderWithAuth('submitter', '/ideas?stage=new_idea')
+    await waitFor(() => expect(listIdeas).toHaveBeenCalled())
+
+    const newIdeaBtn = screen.getByRole('button', { name: /new idea/i })
+    expect(newIdeaBtn).toHaveAttribute('aria-pressed', 'true')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// T015 — IdeasPage combined mine=1 + stage filter
+// ---------------------------------------------------------------------------
+
+describe('IdeasPage — mine=1 + StageFilterCards combined', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('mine=1 + stage=new_idea calls listIdeas with mine:true and stages:[new_idea]', async () => {
+    vi.mocked(listIdeas).mockResolvedValue(emptyList)
+    renderWithAuth('submitter', '/ideas?mine=1&stage=new_idea')
+    await waitFor(() => {
+      const calls = vi.mocked(listIdeas).mock.calls
+      expect(calls.length).toBeGreaterThan(0)
+      const lastCall = calls[calls.length - 1]
+      expect(lastCall[2]).toBe(true)
+      expect(lastCall[3]).toEqual(['new_idea'])
+    })
+  })
+
+  it('mine=1 + stage=new_idea: new_idea filter card shows selected state', async () => {
+    vi.mocked(listIdeas).mockResolvedValue(emptyList)
+    renderWithAuth('submitter', '/ideas?mine=1&stage=new_idea')
+    await waitFor(() => expect(listIdeas).toHaveBeenCalled())
+    const newIdeaBtn = screen.getByRole('button', { name: /new idea/i })
+    expect(newIdeaBtn).toHaveAttribute('aria-pressed', 'true')
   })
 })

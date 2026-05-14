@@ -62,7 +62,7 @@ async def list_ideas(
     page: int = 1,
     limit: int = 20,
     mine: bool = Query(False, description="Filter to current user's ideas"),
-    stage: Optional[Stage] = Query(None, description="Filter by current stage"),
+    stage: Optional[List[Stage]] = Query(None, description="Filter by one or more stages"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IdeaListResponse:

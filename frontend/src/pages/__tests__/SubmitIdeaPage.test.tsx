@@ -71,7 +71,7 @@ describe('SubmitIdeaPage', () => {
     })
   })
 
-  it('calls submitIdea and navigates on successful submit', async () => {
+  it('calls submitIdea and navigates on successful submit (with dialog confirm)', async () => {
     const mockIdea = {
       id: 'idea-123',
       title: 'Great Idea',
@@ -81,7 +81,10 @@ describe('SubmitIdeaPage', () => {
       submitter_name: 'Test User',
       submitted_at: '2026-05-13T10:00:00Z',
       attachments: [],
-      evaluation: { status: 'submitted', comment: null, evaluated_at: null, assigned_admin_id: null, assigned_admin_name: null },
+      current_stage: 'new_idea' as const,
+      assigned_admin_id: null,
+      assigned_admin_name: null,
+      stage_reviews: [],
       extra_data: null,
     }
     ;(submitIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mockIdea)
@@ -94,7 +97,11 @@ describe('SubmitIdeaPage', () => {
     // Use "other" category — no extra fields required
     await userEvent.selectOptions(screen.getByLabelText('Category'), 'other')
 
-    await userEvent.click(screen.getByRole('button', { name: /submit/i }))
+    await userEvent.click(screen.getByRole('button', { name: /submit idea/i }))
+
+    // Confirm the dialog
+    await waitFor(() => expect(screen.getByRole('button', { name: /confirm/i })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /confirm/i }))
 
     await waitFor(() => {
       expect(submitIdea).toHaveBeenCalled()
@@ -137,7 +144,11 @@ describe('SubmitIdeaPage — multi-file attachment', () => {
     const pdf = new File(['data'], 'report.pdf', { type: 'application/pdf' })
     fireEvent.change(fileInput, { target: { files: [pdf] } })
 
-    await userEvent.click(screen.getByRole('button', { name: /submit/i }))
+    await userEvent.click(screen.getByRole('button', { name: /submit idea/i }))
+
+    // Confirm via dialog
+    await waitFor(() => expect(screen.getByRole('button', { name: /confirm/i })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /confirm/i }))
 
     await waitFor(() => {
       expect(capturedFd).not.toBeNull()
@@ -157,14 +168,125 @@ describe('SubmitIdeaPage — multi-file attachment', () => {
     await userEvent.type(screen.getByLabelText(/description/i), 'D')
     await userEvent.selectOptions(screen.getByLabelText('Category'), 'other')
 
-    const submitBtn = screen.getByRole('button', { name: /submit/i })
-    await userEvent.click(submitBtn)
+    await userEvent.click(screen.getByRole('button', { name: /submit idea/i }))
 
-    await waitFor(() => expect(submitBtn).toBeDisabled())
+    // Confirm via dialog to trigger isSubmitting
+    await waitFor(() => expect(screen.getByRole('button', { name: /confirm/i })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /confirm/i }))
+
+    // Dialog stays open while submitting; Confirm button (in dialog, not aria-hidden) is disabled
+    await waitFor(() => expect(screen.getByRole('button', { name: /confirm/i })).toBeDisabled())
 
     resolve({ id: 'x', title: 'T', description: 'D', category: 'other', submitter_id: 'u1',
       submitter_name: 'Test', submitted_at: '', attachments: [],
-      evaluation: { status: 'submitted', comment: null, evaluated_at: null, assigned_admin_id: null, assigned_admin_name: null },
+      current_stage: 'new_idea', assigned_admin_id: null, assigned_admin_name: null, stage_reviews: [],
       extra_data: null })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// T018 — SubmitIdeaPage: ConfirmationDialog before submission
+// ---------------------------------------------------------------------------
+
+describe('SubmitIdeaPage — ConfirmationDialog (T018)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  async function fillAndClickSubmit() {
+    renderWithAuth('submitter')
+    await userEvent.type(screen.getByLabelText(/title/i), 'Great Idea')
+    await userEvent.type(screen.getByLabelText(/description/i), 'A desc')
+    await userEvent.selectOptions(screen.getByLabelText('Category'), 'other')
+    await userEvent.click(screen.getByRole('button', { name: /submit/i }))
+  }
+
+  it('clicking "Submit" opens ConfirmationDialog with correct text', async () => {
+    await fillAndClickSubmit()
+    await waitFor(() => {
+      expect(screen.getByText(/Are you sure you want to submit this idea\?/i)).toBeInTheDocument()
+      expect(screen.getByText(/You will not be able to edit it after submission/i)).toBeInTheDocument()
+    })
+  })
+
+  it('clicking Cancel closes dialog without calling submitIdea', async () => {
+    await fillAndClickSubmit()
+    await waitFor(() => expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    expect(submitIdea).not.toHaveBeenCalled()
+  })
+
+  it('clicking Confirm fires submitIdea', async () => {
+    const mockIdea = {
+      id: 'idea-new', title: 'Great Idea', description: 'A desc', category: 'other',
+      submitter_id: 'u1', submitter_name: 'Test User', submitted_at: '2026-05-14T00:00:00Z',
+      attachments: [], current_stage: 'new_idea' as const, assigned_admin_id: null,
+      assigned_admin_name: null, stage_reviews: [], extra_data: null,
+    }
+    ;(submitIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mockIdea)
+
+    await fillAndClickSubmit()
+    await waitFor(() => expect(screen.getByRole('button', { name: /confirm/i })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /confirm/i }))
+
+    await waitFor(() => expect(submitIdea).toHaveBeenCalledOnce())
+  })
+
+  it('API error closes dialog and shows inline error near Submit button', async () => {
+    ;(submitIdea as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('Server error'))
+
+    await fillAndClickSubmit()
+    await waitFor(() => expect(screen.getByRole('button', { name: /confirm/i })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /confirm/i }))
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Are you sure you want to submit/i)).not.toBeInTheDocument()
+      expect(screen.getByText(/server error/i)).toBeInTheDocument()
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// T022 — SubmitIdeaPage: category field-level validation
+// ---------------------------------------------------------------------------
+
+describe('SubmitIdeaPage — category validation (T022)', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('submitting without a category shows exact message "Please select a category before submitting."', async () => {
+    renderWithAuth('submitter')
+    await userEvent.type(screen.getByLabelText(/title/i), 'Test')
+    await userEvent.type(screen.getByLabelText(/description/i), 'Test desc')
+    await userEvent.click(screen.getByRole('button', { name: /submit/i }))
+    await waitFor(() => {
+      expect(screen.getByText('Please select a category before submitting.')).toBeInTheDocument()
+    })
+    expect(submitIdea).not.toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// T023 — SubmitIdeaPage: onSubmit catch path for category/enum error
+// ---------------------------------------------------------------------------
+
+describe('SubmitIdeaPage — category error catch path (T023)', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('category/enum error in catch sets formError to friendly message', async () => {
+    ;(submitIdea as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('invalid enum value for category'))
+
+    renderWithAuth('submitter')
+    await userEvent.type(screen.getByLabelText(/title/i), 'Test')
+    await userEvent.type(screen.getByLabelText(/description/i), 'Test desc')
+    await userEvent.selectOptions(screen.getByLabelText('Category'), 'other')
+    await userEvent.click(screen.getByRole('button', { name: /submit/i }))
+
+    // Confirm through dialog
+    await waitFor(() => expect(screen.getByRole('button', { name: /confirm/i })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /confirm/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Please select a category before submitting.')).toBeInTheDocument()
+    })
   })
 })
