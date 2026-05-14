@@ -20,7 +20,7 @@
 
 **Purpose**: Add new request schemas to the backend — required before any service or route can be implemented for any story.
 
-- [ ] T001 Add `ResetPasswordRequest` Pydantic schema (with field validators — email: str, new_password: str min 8 chars) to `backend/app/schemas/auth.py`; add `UpdateProfileRequest` (full_name: str, min 1 char) and `ChangePasswordRequest` (current_password: str, new_password: str min 8 chars) schemas to `backend/app/schemas/users.py` (create this file if it does not exist)
+- [X] T001 Add `ResetPasswordRequest` Pydantic schema (with field validators — email: str, new_password: str min 8 chars) to `backend/app/schemas/auth.py`; add `UpdateProfileRequest` (full_name: str, min 1 char) and `ChangePasswordRequest` (current_password: str, new_password: str min 8 chars) schemas to `backend/app/schemas/users.py` (create this file if it does not exist)
 
 ---
 
@@ -30,10 +30,10 @@
 
 **⚠️ CRITICAL**: US2, US3, and US4 cannot be implemented or tested until this phase is complete. All UI implementation tasks (T007, T011, T012, T015, T019, T022, T026, T027, T028, T029) are additionally blocked on T031.
 
-- [ ] T031 [P] **[CONSTITUTION GATE — Principle IV]** Amend `design-system/innovatepam/MASTER.md` via `/ui-ux-pro-max` to document component and style rules for the four new UI components: `ForgotPasswordForm` (inline email + two password fields, inline error display), `ProfilePage` (single-column layout with two vertically stacked card sections), `AccountInfoSection` (editable text field + disabled field card with save button), and `ChangePasswordSection` (three password fields card with submit button). All UI implementation tasks (T007, T011, T012, T015, T019, T022, T026, T027, T028, T029) are blocked until this task is complete.
-- [ ] T002 [P] Add `updateUser(user: User) => void` to `AuthContextValue` interface, implement as `const updateUser = useCallback((u: User) => setUser(u), [])`, and expose in provider value in `frontend/src/context/AuthContext.tsx`
-- [ ] T003 [P] Add lazy import `const ProfilePage = lazy(() => import('./pages/ProfilePage'))` and a `<Route path="/profile" element={<ProfilePage />} />` inside `<Route element={<ProtectedRoute />}><Route element={<AppLayout />}>` in `frontend/src/App.tsx`
-- [ ] T004 Create `frontend/src/pages/ProfilePage.tsx` with "My Profile" page heading, rendering `<AccountInfoSection />` and `<ChangePasswordSection />` in a `space-y-6` vertically stacked layout; also create stub files `frontend/src/components/profile/AccountInfoSection.tsx` and `frontend/src/components/profile/ChangePasswordSection.tsx` (each exporting `export default function X() { return null; }`) to satisfy TypeScript imports until T019 and T026 replace them
+- [X] T031 [P] **[CONSTITUTION GATE — Principle IV]** Amend `design-system/innovatepam/MASTER.md` via `/ui-ux-pro-max` to document component and style rules for the four new UI components: `ForgotPasswordForm` (inline email + two password fields, inline error display), `ProfilePage` (single-column layout with two vertically stacked card sections), `AccountInfoSection` (editable text field + disabled field card with save button), and `ChangePasswordSection` (three password fields card with submit button). All UI implementation tasks (T007, T011, T012, T015, T019, T022, T026, T027, T028, T029) are blocked until this task is complete.
+- [X] T002 [P] Add `updateUser(user: User) => void` to `AuthContextValue` interface, implement as `const updateUser = useCallback((u: User) => setUser(u), [])`, and expose in provider value in `frontend/src/context/AuthContext.tsx`
+- [X] T003 [P] Add lazy import `const ProfilePage = lazy(() => import('./pages/ProfilePage'))` and a `<Route path="/profile" element={<ProfilePage />} />` inside `<Route element={<ProtectedRoute />}><Route element={<AppLayout />}>` in `frontend/src/App.tsx`
+- [X] T004 Create `frontend/src/pages/ProfilePage.tsx` with "My Profile" page heading, rendering `<AccountInfoSection />` and `<ChangePasswordSection />` in a `space-y-6` vertically stacked layout; also create stub files `frontend/src/components/profile/AccountInfoSection.tsx` and `frontend/src/components/profile/ChangePasswordSection.tsx` (each exporting `export default function X() { return null; }`) to satisfy TypeScript imports until T019 and T026 replace them
 
 **Checkpoint**: Foundation ready — US1 can begin immediately; US2, US3, US4 are unblocked. **T031 must be complete before any UI implementation task begins (Principle IV design gate).**
 
@@ -47,17 +47,17 @@
 
 ### Tests for User Story 1 ⚠️ Write first — confirm FAILING before implementation
 
-- [ ] T005 [P] [US1] Write failing unit tests for `reset_password()` covering: success (hash updated), 404 for unknown email, and 422 for password < 8 chars in `backend/tests/unit/test_auth_service.py`
-- [ ] T006 [P] [US1] Write failing integration tests for `POST /api/v1/auth/reset-password` covering: 200 success, 404 unknown email, 422 validation failure in `backend/tests/integration/test_auth_routes.py`
-- [ ] T007 [P] [US1] Write failing frontend component tests for `ForgotPasswordForm.tsx` covering: renders three fields + button, Zod validation fires before fetch, success hides form via `onSuccess()`, 404 shows "No account found with that email address." in `frontend/src/components/auth/__tests__/ForgotPasswordForm.test.tsx`
+- [X] T005 [P] [US1] Write failing unit tests for `reset_password()` covering: success (hash updated), 404 for unknown email, and 422 for password < 8 chars in `backend/tests/unit/test_auth_service.py`
+- [X] T006 [P] [US1] Write failing integration tests for `POST /api/v1/auth/reset-password` covering: 200 success, 404 unknown email, 422 validation failure in `backend/tests/integration/test_auth_routes.py`
+- [X] T007 [P] [US1] Write failing frontend component tests for `ForgotPasswordForm.tsx` covering: renders three fields + button, Zod validation fires before fetch, success hides form via `onSuccess()`, 404 shows "No account found with that email address." in `frontend/src/components/auth/__tests__/ForgotPasswordForm.test.tsx`
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] Implement `reset_password(db, data)` in `backend/app/services/auth_service.py` — normalize email to lowercase, `SELECT` user by email (raise 404 if not found), `hash_password(data.new_password)`, assign to `user.hashed_password`, `await db.commit()`
-- [ ] T009 [US1] Add `POST /auth/reset-password` route handler that calls `auth_service.reset_password()` and returns `{"message": "Password reset successfully."}` to `backend/app/api/routes/auth.py`
-- [ ] T010 [P] [US1] Add `resetPassword(data: ResetPasswordRequest): Promise<{message: string}>` function posting to `/api/v1/auth/reset-password` in `frontend/src/api/auth.ts`
-- [ ] T011 [US1] Create `frontend/src/components/auth/ForgotPasswordForm.tsx` with email, new_password, confirm_password fields; `forgotPasswordSchema` Zod validation (`z.string().email().endsWith('@epam.com')` per FR-003, min 8 chars for new_password, password match refine); on success emit a **global toast** (use the project's existing toast/notification pattern) then call `props.onSuccess()` — do not use an inline alert inside this component as it will unmount before the user reads it; on 404 shows "No account found with that email address." as an inline form error (persists while form is visible)
-- [ ] T012 [US1] Update `frontend/src/components/auth/LoginForm.tsx` — add `const [showForgot, setShowForgot] = useState(false)`, "Forgot password?" button below the form, and conditionally render `<ForgotPasswordForm onSuccess={() => setShowForgot(false)} />`
+- [X] T008 [US1] Implement `reset_password(db, data)` in `backend/app/services/auth_service.py` — normalize email to lowercase, `SELECT` user by email (raise 404 if not found), `hash_password(data.new_password)`, assign to `user.hashed_password`, `await db.commit()`
+- [X] T009 [US1] Add `POST /auth/reset-password` route handler that calls `auth_service.reset_password()` and returns `{"message": "Password reset successfully."}` to `backend/app/api/routes/auth.py`
+- [X] T010 [P] [US1] Add `resetPassword(data: ResetPasswordRequest): Promise<{message: string}>` function posting to `/api/v1/auth/reset-password` in `frontend/src/api/auth.ts`
+- [X] T011 [US1] Create `frontend/src/components/auth/ForgotPasswordForm.tsx` with email, new_password, confirm_password fields; `forgotPasswordSchema` Zod validation (`z.string().email().endsWith('@epam.com')` per FR-003, min 8 chars for new_password, password match refine); on success emit a **global toast** (use the project's existing toast/notification pattern) then call `props.onSuccess()` — do not use an inline alert inside this component as it will unmount before the user reads it; on 404 shows "No account found with that email address." as an inline form error (persists while form is visible)
+- [X] T012 [US1] Update `frontend/src/components/auth/LoginForm.tsx` — add `const [showForgot, setShowForgot] = useState(false)`, "Forgot password?" button below the form, and conditionally render `<ForgotPasswordForm onSuccess={() => setShowForgot(false)} />`
 
 **Checkpoint**: US1 complete — forgot-password flow fully functional and independently testable.
 
@@ -71,16 +71,16 @@
 
 ### Tests for User Story 2 ⚠️ Write first — confirm FAILING before implementation
 
-- [ ] T013 [P] [US2] Write failing unit tests for `update_profile()` covering: success (name updated and returned), empty-name rejection (422) in `backend/tests/unit/test_user_service.py`
-- [ ] T014 [P] [US2] Write failing integration tests for `PATCH /api/v1/users/me` covering: 200 success with `UserResponse`, 401 unauthenticated, 422 empty full_name in `backend/tests/integration/test_user_routes.py`
-- [ ] T015 [P] [US2] Write failing frontend component tests for `AccountInfoSection.tsx` covering: pre-fills full_name from auth context, email field is disabled, successful save calls `updateUser()` with response, server error shows error message in `frontend/src/components/profile/__tests__/AccountInfoSection.test.tsx`
+- [X] T013 [P] [US2] Write failing unit tests for `update_profile()` covering: success (name updated and returned), empty-name rejection (422) in `backend/tests/unit/test_user_service.py`
+- [X] T014 [P] [US2] Write failing integration tests for `PATCH /api/v1/users/me` covering: 200 success with `UserResponse`, 401 unauthenticated, 422 empty full_name in `backend/tests/integration/test_user_routes.py`
+- [X] T015 [P] [US2] Write failing frontend component tests for `AccountInfoSection.tsx` covering: pre-fills full_name from auth context, email field is disabled, successful save calls `updateUser()` with response, server error shows error message in `frontend/src/components/profile/__tests__/AccountInfoSection.test.tsx`
 
 ### Implementation for User Story 2
 
-- [ ] T016 [US2] Implement `update_profile(db, user_id, full_name)` in `backend/app/services/user_service.py` — `SELECT` user by id (scalar_one), `user.full_name = full_name.strip()`, commit, refresh, return user
-- [ ] T017 [US2] Add `PATCH /users/me` route handler (auth-required via `get_current_user` dependency, calls `user_service.update_profile()`, returns `UserResponse`) to `backend/app/api/routes/users.py`
-- [ ] T018 [P] [US2] Add `updateProfile(data: UpdateProfileRequest): Promise<UserResponse>` function patching `/api/v1/users/me` to `frontend/src/api/auth.ts`
-- [ ] T019 [US2] Create `frontend/src/components/profile/AccountInfoSection.tsx` — use `useAuth()` for `user` and `updateUser`; pre-fill full_name, disabled email field; `accountInfoSchema` Zod validation; on success call `updateUser(responseUser)` + show success alert; on error show error alert; disable Save button while submitting
+- [X] T016 [US2] Implement `update_profile(db, user_id, full_name)` in `backend/app/services/user_service.py` — `SELECT` user by id (scalar_one), `user.full_name = full_name.strip()`, commit, refresh, return user
+- [X] T017 [US2] Add `PATCH /users/me` route handler (auth-required via `get_current_user` dependency, calls `user_service.update_profile()`, returns `UserResponse`) to `backend/app/api/routes/users.py`
+- [X] T018 [P] [US2] Add `updateProfile(data: UpdateProfileRequest): Promise<UserResponse>` function patching `/api/v1/users/me` to `frontend/src/api/auth.ts`
+- [X] T019 [US2] Create `frontend/src/components/profile/AccountInfoSection.tsx` — use `useAuth()` for `user` and `updateUser`; pre-fill full_name, disabled email field; `accountInfoSchema` Zod validation; on success call `updateUser(responseUser)` + show success alert; on error show error alert; disable Save button while submitting
 
 **Checkpoint**: US2 complete — name update flows from form to sidebar without page reload.
 
@@ -94,16 +94,16 @@
 
 ### Tests for User Story 3 ⚠️ Write first — confirm FAILING before implementation
 
-- [ ] T020 [P] [US3] Write failing unit tests for `change_password()` covering: success (hashed_password updated), wrong current password (400), new password < 8 chars (422) in `backend/tests/unit/test_user_service.py`
-- [ ] T021 [P] [US3] Write failing integration tests for `POST /api/v1/users/me/change-password` covering: 200 success, 400 wrong current password, 401 unauthenticated, 422 validation failure in `backend/tests/integration/test_user_routes.py`
-- [ ] T022 [P] [US3] Write failing frontend component tests for `ChangePasswordSection.tsx` covering: renders three password fields, Zod validation fires before fetch, success shows alert and resets form, 400 shows "Current password is incorrect." in `frontend/src/components/profile/__tests__/ChangePasswordSection.test.tsx`
+- [X] T020 [P] [US3] Write failing unit tests for `change_password()` covering: success (hashed_password updated), wrong current password (400), new password < 8 chars (422) in `backend/tests/unit/test_user_service.py`
+- [X] T021 [P] [US3] Write failing integration tests for `POST /api/v1/users/me/change-password` covering: 200 success, 400 wrong current password, 401 unauthenticated, 422 validation failure in `backend/tests/integration/test_user_routes.py`
+- [X] T022 [P] [US3] Write failing frontend component tests for `ChangePasswordSection.tsx` covering: renders three password fields, Zod validation fires before fetch, success shows alert and resets form, 400 shows "Current password is incorrect." in `frontend/src/components/profile/__tests__/ChangePasswordSection.test.tsx`
 
 ### Implementation for User Story 3
 
-- [ ] T023 [US3] Implement `change_password(db, user_id, current_password, new_password)` in `backend/app/services/user_service.py` — `SELECT` user by id, `verify_password(current_password, user.hashed_password)` (raise 400 if wrong), `user.hashed_password = hash_password(new_password)`, commit — do NOT invalidate or touch the session token
-- [ ] T024 [US3] Add `POST /users/me/change-password` route handler (auth-required, calls `user_service.change_password()`, returns `{"message": "Password changed successfully."}`) to `backend/app/api/routes/users.py`
-- [ ] T025 [P] [US3] Add `changePassword(data: ChangePasswordRequest): Promise<{message: string}>` function posting to `/api/v1/users/me/change-password` in `frontend/src/api/auth.ts`
-- [ ] T026 [US3] Create `frontend/src/components/profile/ChangePasswordSection.tsx` — current_password, new_password, confirm_password fields; `changePasswordSchema` Zod validation (min 8, password match refine); on success show success alert and reset form; on 400 show "Current password is incorrect."; disable Change Password button while submitting
+- [X] T023 [US3] Implement `change_password(db, user_id, current_password, new_password)` in `backend/app/services/user_service.py` — `SELECT` user by id, `verify_password(current_password, user.hashed_password)` (raise 400 if wrong), `user.hashed_password = hash_password(new_password)`, commit — do NOT invalidate or touch the session token
+- [X] T024 [US3] Add `POST /users/me/change-password` route handler (auth-required, calls `user_service.change_password()`, returns `{"message": "Password changed successfully."}`) to `backend/app/api/routes/users.py`
+- [X] T025 [P] [US3] Add `changePassword(data: ChangePasswordRequest): Promise<{message: string}>` function posting to `/api/v1/users/me/change-password` in `frontend/src/api/auth.ts`
+- [X] T026 [US3] Create `frontend/src/components/profile/ChangePasswordSection.tsx` — current_password, new_password, confirm_password fields; `changePasswordSchema` Zod validation (min 8, password match refine); on success show success alert and reset form; on 400 show "Current password is incorrect."; disable Change Password button while submitting
 
 **Checkpoint**: US3 complete — change password, session intact, can re-login with new credentials.
 
@@ -117,11 +117,11 @@
 
 ### Tests for User Story 4 ⚠️ Write first — confirm FAILING before implementation
 
-- [ ] T027 [US4] Update `frontend/src/components/layout/__tests__/Sidebar.test.tsx` to add assertions that "My Profile" link is rendered for a user with role `admin` and for a user with role `submitter`, and that the link href points to `/profile`
+- [X] T027 [US4] Update `frontend/src/components/layout/__tests__/Sidebar.test.tsx` to add assertions that "My Profile" link is rendered for a user with role `admin` and for a user with role `submitter`, and that the link href points to `/profile`
 
 ### Implementation for User Story 4
 
-- [ ] T028 [US4] Add `{ to: '/profile', label: 'My Profile', icon: User, roles: ['submitter', 'admin'] }` to the `NAV_ITEMS` array in `frontend/src/components/layout/Sidebar.tsx` (import `User` icon from `lucide-react`)
+- [X] T028 [US4] Add `{ to: '/profile', label: 'My Profile', icon: User, roles: ['submitter', 'admin'] }` to the `NAV_ITEMS` array in `frontend/src/components/layout/Sidebar.tsx` (import `User` icon from `lucide-react`)
 
 **Checkpoint**: US4 complete — both roles can navigate to /profile from the sidebar.
 
@@ -129,8 +129,8 @@
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T029 [P] Write frontend integration tests for `ProfilePage.tsx` verifying: both `AccountInfoSection` and `ChangePasswordSection` are rendered, and unauthenticated access to `/profile` redirects to login in `frontend/src/pages/__tests__/ProfilePage.test.tsx`
-- [ ] T032 [P] **[SC-006 regression gate]** After Phase 2 foundational tasks (T002, T003) are merged, run the full existing test suites — `pytest backend/tests/integration/` and the frontend Vitest suite — to confirm zero regressions in pre-existing protected routes (ideas, reviews, admin) caused by the AuthContext change (T002) or the new /profile route (T003). Record pass/fail in the PR description under the Constitution Check section.
+- [X] T029 [P] Write frontend integration tests for `ProfilePage.tsx` verifying: both `AccountInfoSection` and `ChangePasswordSection` are rendered, and unauthenticated access to `/profile` redirects to login in `frontend/src/pages/__tests__/ProfilePage.test.tsx`
+- [X] T032 [P] **[SC-006 regression gate]** After Phase 2 foundational tasks (T002, T003) are merged, run the full existing test suites — `pytest backend/tests/integration/` and the frontend Vitest suite — to confirm zero regressions in pre-existing protected routes (ideas, reviews, admin) caused by the AuthContext change (T002) or the new /profile route (T003). Record pass/fail in the PR description under the Constitution Check section.
 - [ ] T030 Run the quickstart.md manual validation walkthrough and confirm all acceptance scenarios for US1–US4 pass end-to-end
 
 ---

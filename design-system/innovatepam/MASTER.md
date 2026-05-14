@@ -1973,3 +1973,331 @@ flex items-center justify-end gap-4 mb-4
 
 **AND semantics**: When both filters are active, the API receives both `status=…` and
 `mine=true` query params. The backend applies them as a logical AND.
+
+---
+
+## Forgot Password & My Profile Components (Feature 008-forgot-password-profile)
+
+> These sections govern all UI in `008-forgot-password-profile`. They extend the rules above —
+> global rules still apply unless explicitly overridden here.
+
+---
+
+### ForgotPasswordForm
+
+Inline sub-form rendered inside `LoginForm` below the login fields when the user clicks
+"Forgot password?". The parent `LoginPage` card remains visible — the form is not a modal
+or a separate route.
+
+**Three fields**: `email`, `new_password`, `confirm_password`.
+
+**Layout**: Single-column, `space-y-4`. No separate card wrapper — the form sits in the
+existing auth card's vertical flow.
+
+**Validation** (Zod, client-side only):
+- `email`: required, valid email, must end with `@epam.com`
+- `new_password`: min 8 characters
+- `confirm_password`: must match `new_password` (`.refine`)
+
+**Error display**:
+- Field-level: `<FormMessage>` per field (standard field error pattern)
+- 404 inline error (email not found): banner pattern below the last field — `role="alert"`,
+  `bg-red-50 border border-red-200 text-red-700 rounded-md px-4 py-3 text-sm`
+
+**Success**: Call `props.onSuccess()` — the form unmounts. The parent (`LoginForm`) shows
+a success alert **after** the form disappears so the user sees it.
+
+**Button**: `w-full`, disabled while `isSubmitting`. Label: "Reset Password".
+
+```
+// Form wrapper (inside auth card vertical flow)
+space-y-4 mt-4
+
+// Section divider above form
+border-t border-border pt-4
+
+// Section heading
+text-sm font-semibold text-slate-700 mb-2
+
+// 404 inline error banner
+role="alert"
+rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700
+
+// Submit button
+w-full (Button variant="default")
+```
+
+**TSX skeleton:**
+
+```tsx
+interface ForgotPasswordFormProps {
+  onSuccess: () => void
+}
+
+export default function ForgotPasswordForm({ onSuccess }: ForgotPasswordFormProps) {
+  const form = useForm<FormValues>({ resolver: zodResolver(forgotPasswordSchema), ... })
+  const [formError, setFormError] = useState<string | null>(null)
+
+  const onSubmit = async (values: FormValues) => {
+    setFormError(null)
+    try {
+      await resetPassword({ email: values.email, new_password: values.new_password })
+      onSuccess()
+    } catch (err: any) {
+      if (err.status === 404) {
+        setFormError('No account found with that email address.')
+      } else {
+        setFormError('Something went wrong. Please try again.')
+      }
+    }
+  }
+
+  return (
+    <div className="border-t border-border pt-4 mt-4">
+      <p className="text-sm font-semibold text-slate-700 mb-2">Reset Password</p>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+          {formError && (
+            <div role="alert" className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+              {formError}
+            </div>
+          )}
+          {/* email field */}
+          {/* new_password field */}
+          {/* confirm_password field */}
+          <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+            {form.formState.isSubmitting ? 'Resetting…' : 'Reset Password'}
+          </Button>
+        </form>
+      </Form>
+    </div>
+  )
+}
+```
+
+**Password fields**: Use the standard Password Input (show/hide toggle) pattern.
+
+**Accessibility**: `role="alert"` on the 404 error banner. Field-level errors via
+`<FormMessage>` (no additional `role="alert"` per design system rule).
+
+---
+
+### ProfilePage Layout
+
+Protected page at `/profile`. Single-column, vertically stacked card layout inside the
+authenticated sidebar shell. Accessible to both `admin` and `submitter` roles.
+
+```
+// Page wrapper (inside sidebar shell content area)
+px-6 py-8
+
+// Content column
+w-full max-w-2xl mx-auto
+
+// Page heading (h1)
+font-heading font-semibold text-xl text-primary mb-6
+
+// Card stack
+space-y-6
+```
+
+**TSX structure:**
+
+```tsx
+export default function ProfilePage() {
+  return (
+    <div className="px-6 py-8">
+      <div className="w-full max-w-2xl mx-auto">
+        <h1 className="font-heading font-semibold text-xl text-primary mb-6">My Profile</h1>
+        <div className="space-y-6">
+          <AccountInfoSection />
+          <ChangePasswordSection />
+        </div>
+      </div>
+    </div>
+  )
+}
+```
+
+**Responsive**: Column is `max-w-2xl` (672 px) on desktop; fills `w-full` with `px-6`
+gutter on mobile. Consistent with the Idea Submission form column width.
+
+---
+
+### AccountInfoSection
+
+Card section on ProfilePage. Editable `full_name` field; read-only `email` field. On
+successful save, calls `updateUser(responseUser)` to propagate the name change to the
+sidebar and any other consumers of `AuthContext`.
+
+```
+// Card wrapper
+bg-white rounded-xl p-6 shadow-md border border-border
+
+// Card heading
+text-base font-semibold text-slate-800 mb-4
+
+// Field stack
+space-y-4
+
+// Read-only email field
+opacity-60 cursor-not-allowed bg-slate-50
+
+// Save button
+mt-2 self-start (Button variant="default", disabled while isSubmitting)
+
+// Success alert
+role="status"
+rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700 mt-4
+
+// Error alert
+role="alert"
+rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 mt-4
+```
+
+**TSX skeleton:**
+
+```tsx
+export default function AccountInfoSection() {
+  const { user, updateUser } = useAuth()
+  const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(accountInfoSchema),
+    defaultValues: { full_name: user?.full_name ?? '' },
+  })
+
+  const onSubmit = async (values: FormValues) => {
+    setSuccessMsg(null); setErrorMsg(null)
+    try {
+      const updated = await updateProfile({ full_name: values.full_name })
+      updateUser(updated)
+      setSuccessMsg('Profile updated successfully.')
+    } catch {
+      setErrorMsg('Failed to update profile. Please try again.')
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-xl p-6 shadow-md border border-border">
+      <h2 className="text-base font-semibold text-slate-800 mb-4">Account Information</h2>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          {/* full_name FormField */}
+          {/* email: disabled Input, no FormField needed */}
+          {successMsg && (
+            <div role="status" className="rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
+              {successMsg}
+            </div>
+          )}
+          {errorMsg && (
+            <div role="alert" className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+              {errorMsg}
+            </div>
+          )}
+          <Button type="submit" disabled={form.formState.isSubmitting} className="mt-2">
+            {form.formState.isSubmitting ? 'Saving…' : 'Save Changes'}
+          </Button>
+        </form>
+      </Form>
+    </div>
+  )
+}
+```
+
+**State**: `successMsg` and `errorMsg` are mutually exclusive — clear both at start of each
+submit. Form is NOT reset on success (the name field retains the saved value).
+
+---
+
+### ChangePasswordSection
+
+Card section on ProfilePage. Three password fields: `current_password`, `new_password`,
+`confirm_password`. Session remains active after a successful change (per ADR-013 /
+research.md Decision 5). Form resets to empty on success.
+
+```
+// Card wrapper
+bg-white rounded-xl p-6 shadow-md border border-border
+
+// Card heading
+text-base font-semibold text-slate-800 mb-4
+
+// Field stack
+space-y-4
+
+// Change Password button
+mt-2 self-start (Button variant="default", disabled while isSubmitting)
+
+// Success alert
+role="status"
+rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700 mt-4
+
+// Error alert (wrong current password — 400)
+role="alert"
+rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 mt-4
+```
+
+**Error copy for 400**: "Current password is incorrect."
+
+**TSX skeleton:**
+
+```tsx
+export default function ChangePasswordSection() {
+  const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(changePasswordSchema),
+    defaultValues: { current_password: '', new_password: '', confirm_password: '' },
+  })
+
+  const onSubmit = async (values: FormValues) => {
+    setSuccessMsg(null); setErrorMsg(null)
+    try {
+      await changePassword({ current_password: values.current_password, new_password: values.new_password })
+      setSuccessMsg('Password changed successfully.')
+      form.reset()
+    } catch (err: any) {
+      if (err.status === 400) {
+        setErrorMsg('Current password is incorrect.')
+      } else {
+        setErrorMsg('Failed to change password. Please try again.')
+      }
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-xl p-6 shadow-md border border-border">
+      <h2 className="text-base font-semibold text-slate-800 mb-4">Change Password</h2>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          {/* current_password — password input with show/hide */}
+          {/* new_password — password input with show/hide */}
+          {/* confirm_password — password input with show/hide */}
+          {successMsg && (
+            <div role="status" className="rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
+              {successMsg}
+            </div>
+          )}
+          {errorMsg && (
+            <div role="alert" className="rounded-md bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+              {errorMsg}
+            </div>
+          )}
+          <Button type="submit" disabled={form.formState.isSubmitting} className="mt-2">
+            {form.formState.isSubmitting ? 'Changing…' : 'Change Password'}
+          </Button>
+        </form>
+      </Form>
+    </div>
+  )
+}
+```
+
+**All three password fields** use the Password Input (show/hide toggle) pattern from the
+design system.
+
+**Session invariant**: `user.hashed_password` is updated by the backend. The session token
+and cookie are NOT touched. The user remains logged in after a successful change.

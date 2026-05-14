@@ -141,6 +141,34 @@ async def test_me_returns_401_for_missing_cookie(async_client):
     assert res.status_code == 401
 
 
+RESET_URL = "/api/v1/auth/reset-password"
+
+
+# ── /auth/reset-password ─────────────────────────────────────────
+
+async def test_reset_password_returns_200_for_known_email(async_client):
+    await async_client.post(REGISTER_URL, json=VALID_REG)
+    res = await async_client.post(
+        RESET_URL, json={"email": "alice@epam.com", "new_password": "newpass99"}
+    )
+    assert res.status_code == 200
+    assert res.json()["message"] == "Password reset successfully."
+
+
+async def test_reset_password_unknown_email_returns_404(async_client):
+    res = await async_client.post(
+        RESET_URL, json={"email": "nobody@epam.com", "new_password": "newpass99"}
+    )
+    assert res.status_code == 404
+
+
+async def test_reset_password_short_password_returns_422(async_client):
+    res = await async_client.post(
+        RESET_URL, json={"email": "alice@epam.com", "new_password": "short"}
+    )
+    assert res.status_code == 422
+
+
 async def test_me_returns_401_and_deletes_expired_session(async_client, test_engine):
     from datetime import datetime, timedelta, timezone
     from sqlalchemy import select, update

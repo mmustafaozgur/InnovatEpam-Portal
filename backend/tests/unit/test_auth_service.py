@@ -106,3 +106,31 @@ async def test_logout_nonexistent_token_raises_401(db):
     with pytest.raises(HTTPException) as exc:
         await auth_service.logout(db, "nonexistent-token")
     assert exc.value.status_code == 401
+
+
+# ── reset_password ───────────────────────────────────────────────
+
+def _reset(email="alice@epam.com", new_password="newpass99"):
+    from app.schemas.auth import ResetPasswordRequest
+    return ResetPasswordRequest(email=email, new_password=new_password)
+
+
+async def test_reset_password_updates_hash(db):
+    user = await auth_service.register(db, _reg())
+    old_hash = user.hashed_password
+    await auth_service.reset_password(db, _reset())
+    from sqlalchemy import select
+    result = await db.execute(select(User).where(User.email == "alice@epam.com"))
+    updated = result.scalar_one()
+    assert updated.hashed_password != old_hash
+
+
+async def test_reset_password_unknown_email_raises_404(db):
+    with pytest.raises(HTTPException) as exc:
+        await auth_service.reset_password(db, _reset(email="nobody@epam.com"))
+    assert exc.value.status_code == 404
+
+
+async def test_reset_password_short_password_raises_422(db):
+    with pytest.raises(Exception):
+        _reset(new_password="short")

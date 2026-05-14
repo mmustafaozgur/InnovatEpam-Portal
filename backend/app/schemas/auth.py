@@ -1,6 +1,25 @@
 from pydantic import BaseModel, EmailStr, field_validator, ConfigDict
 
 
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    new_password: str
+
+    @field_validator("email")
+    @classmethod
+    def email_must_be_epam(cls, v: str) -> str:
+        if not v.lower().endswith("@epam.com"):
+            raise ValueError("Only @epam.com email addresses are allowed")
+        return v
+
+    @field_validator("new_password")
+    @classmethod
+    def password_min_length(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("password must be at least 8 characters")
+        return v
+
+
 class RegisterRequest(BaseModel):
     full_name: str
     email: EmailStr

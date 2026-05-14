@@ -5,6 +5,7 @@ from app.api.deps import get_current_user
 from app.database import get_db
 from app.models.user import User
 from app.schemas.auth import UserResponse, UsersListResponse
+from app.schemas.users import ChangePasswordRequest, UpdateProfileRequest
 from app.services import user_service
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -13,6 +14,27 @@ router = APIRouter(prefix="/users", tags=["users"])
 def _require_admin(current_user: User) -> None:
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin access required.")
+
+
+@router.patch("/me", response_model=UserResponse)
+async def update_me(
+    data: UpdateProfileRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    return await user_service.update_profile(db, current_user.id, data.full_name)
+
+
+@router.post("/me/change-password")
+async def change_password(
+    data: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await user_service.change_password(
+        db, current_user.id, data.current_password, data.new_password
+    )
+    return {"message": "Password changed successfully."}
 
 
 @router.get("", response_model=UsersListResponse)
