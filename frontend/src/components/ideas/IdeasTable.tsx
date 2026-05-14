@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { Paperclip } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -44,12 +45,20 @@ export function IdeasTable({ ideas }: { ideas: IdeaSummaryResponse[] }) {
               className="hover:bg-slate-50 transition-colors duration-150"
             >
               <TableCell className="px-4 py-3">
-                <Link
-                  to={`/ideas/${idea.id}`}
-                  className="text-primary font-medium hover:underline underline-offset-2 cursor-pointer transition-colors duration-200"
-                >
-                  {idea.title}
-                </Link>
+                <div className="flex items-center gap-2">
+                  <Link
+                    to={`/ideas/${idea.id}`}
+                    className="text-primary font-medium hover:underline underline-offset-2 cursor-pointer transition-colors duration-200"
+                  >
+                    {idea.title}
+                  </Link>
+                  {idea.attachment_count > 0 && (
+                    <span className="inline-flex items-center gap-0.5 text-xs text-slate-500 bg-slate-100 rounded px-1.5 py-0.5">
+                      <Paperclip className="w-3 h-3" />
+                      {idea.attachment_count}
+                    </span>
+                  )}
+                </div>
               </TableCell>
               <TableCell className="px-4 py-3">
                 <CategoryBadge category={idea.category} />

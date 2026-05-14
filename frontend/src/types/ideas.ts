@@ -1,7 +1,9 @@
-export interface FileInfo {
+export interface AttachmentInfo {
+  id: string
   name: string
   size: number
   mime_type: string
+  is_image: boolean
 }
 
 export type EvaluationStatus = 'submitted' | 'under_review' | 'accepted' | 'rejected'
@@ -27,7 +29,7 @@ export interface IdeaDetailResponse {
   submitter_id: string
   submitter_name: string
   submitted_at: string
-  file: FileInfo | null
+  attachments: AttachmentInfo[]
   evaluation: EvaluationInfo
   extra_data: Record<string, unknown> | null
 }
@@ -38,7 +40,7 @@ export interface IdeaSummaryResponse {
   category: string
   submitter_name: string
   submitted_at: string
-  has_attachment: boolean
+  attachment_count: number
   evaluation_status: EvaluationStatus
   reviewer_name: string | null
   extra_data: Record<string, unknown> | null

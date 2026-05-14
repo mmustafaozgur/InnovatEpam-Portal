@@ -1054,114 +1054,312 @@ sits flush below the input and any error message appears last.
 
 ### File Upload Control
 
-Single-file picker, button-triggered. No drag-and-drop in v1.
-Accepted types: PDF, DOCX, PNG, JPG. Max size: 10 MB.
-Primary icon: `Paperclip` from `lucide-react`.
+Multi-file picker, button-triggered (up to 5 files, 50 MB combined total). No drag-and-drop.
+Accepted types: PDF, DOCX, DOC, PNG, JPG, GIF, MP4, MOV, PPTX, PPT.
+**Controlled** — `FileUploadControl` fires `onFilesChange(files: File[])` on every add/remove;
+`SubmitIdeaPage` owns the canonical `File[]` state.
 
-**States:**
+#### Icon Mapping (lucide-react only — no emojis, no custom SVGs)
+
+| File group | MIME types | lucide icon |
+|------------|-----------|-------------|
+| Image | `image/*` | thumbnail via `<img>` (no icon) |
+| PDF / DOC / DOCX | `application/pdf`, `application/msword`, `application/vnd.openxmlformats…wordprocessing…` | `FileText` |
+| Video | `video/mp4`, `video/quicktime` | `Video` |
+| Presentation | `application/vnd.ms-powerpoint`, `application/vnd.openxmlformats…presentationml…` | `Presentation` |
+| Fallback | anything else accepted | `Paperclip` |
+
+#### States
 
 | State | Visual |
 |-------|--------|
-| Idle | Secondary-style button: Paperclip icon + "Attach a file" label |
-| File selected | Row: icon + filename + size label + × clear button |
-| Error — wrong type | Red text below: "Only PDF, DOCX, PNG, and JPG files are accepted." |
-| Error — oversized | Red text below: "File must be 10 MB or smaller." |
+| Empty (no files) | Secondary-style button: `Paperclip` icon + "Attach files" label |
+| File tiles present | Horizontal wrap of tiles; button remains below the tile list |
+| Image tile | 80×80 px thumbnail via `URL.createObjectURL`; `×` button top-right |
+| Non-image tile | 80×80 px card with centered icon + truncated filename below; `×` button top-right |
+| Error — wrong type | `text-red-500 text-xs mt-1` below tiles |
+| Error — 6th file blocked | `text-red-500 text-xs mt-1` "Maximum 5 files allowed." |
+| Error — total size exceeded | `text-red-500 text-xs mt-1` "Combined size must be 50 MB or less." |
 
 ```
-// Idle button
+// Add-files button (idle or alongside tiles)
 inline-flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-lg
 text-sm font-medium hover:bg-primary/5 transition-colors duration-200 cursor-pointer
 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40
 
-// Selected row wrapper
-flex items-center gap-3 px-4 py-3 border border-border rounded-lg bg-white
+// Tile grid wrapper
+flex flex-wrap gap-3 mt-0
 
-// Filename + size
-flex-1 text-sm text-slate-700 truncate   (size suffix: text-slate-400)
+// Individual tile (image or non-image)
+relative w-20 h-20 rounded-lg border border-border bg-white flex flex-col items-center
+justify-center overflow-hidden shrink-0
 
-// Clear (×) button
-text-slate-400 hover:text-slate-600 transition-colors duration-200 cursor-pointer
-focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded
+// Image thumbnail inside tile
+w-full h-full object-cover rounded-lg
 
-// Error text (both variants)
+// Non-image icon inside tile
+w-6 h-6 text-slate-400
+
+// Filename label below icon (non-image tiles)
+text-[10px] text-slate-500 text-center truncate w-full px-1 mt-1
+
+// Per-tile remove (×) button — absolute top-right
+absolute top-0.5 right-0.5 w-5 h-5 flex items-center justify-center rounded-full
+bg-white/90 text-slate-500 hover:text-red-500 hover:bg-white transition-colors
+cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40
+
+// Error text
 text-red-500 text-xs mt-1
 ```
 
 **TSX pattern:**
 
 ```tsx
-import { Paperclip, X } from 'lucide-react';
+import { useRef, useState, useEffect } from 'react'
+import { Paperclip, X, FileText, Video, Presentation } from 'lucide-react'
 
-const ACCEPTED_TYPES = [
+const ACCEPTED_MIME = [
+  'image/png', 'image/jpeg', 'image/gif',
   'application/pdf',
+  'video/mp4', 'video/quicktime',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.ms-powerpoint',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'image/png',
-  'image/jpeg',
-];
-const MAX_SIZE_BYTES = 10 * 1024 * 1024;
+  'application/msword',
+]
+const ACCEPTED_EXT = '.png,.jpg,.jpeg,.gif,.pdf,.mp4,.mov,.pptx,.ppt,.docx,.doc'
+const MAX_FILES = 5
+const MAX_TOTAL_BYTES = 50 * 1024 * 1024
 
-export function FileUploadControl({ onChange }: { onChange: (file: File | null) => void }) {
-  const [file, setFile] = useState<File | null>(null);
-  const [error, setError] = useState<'type' | 'size' | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+function getFileIcon(mime: string) {
+  if (mime.startsWith('image/')) return null            // renders <img> thumbnail instead
+  if (mime === 'video/mp4' || mime === 'video/quicktime') return <Video className="w-6 h-6 text-slate-400" />
+  if (mime.includes('presentationml') || mime === 'application/vnd.ms-powerpoint')
+    return <Presentation className="w-6 h-6 text-slate-400" />
+  if (mime.includes('wordprocessing') || mime === 'application/msword' || mime === 'application/pdf')
+    return <FileText className="w-6 h-6 text-slate-400" />
+  return <Paperclip className="w-6 h-6 text-slate-400" />
+}
+
+interface FileTile { file: File; preview: string | null }
+
+interface FileUploadControlProps {
+  onFilesChange: (files: File[]) => void
+}
+
+export function FileUploadControl({ onFilesChange }: FileUploadControlProps) {
+  const [tiles, setTiles] = useState<FileTile[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    return () => { tiles.forEach(t => { if (t.preview) URL.revokeObjectURL(t.preview) }) }
+  }, [tiles])
 
   const handleSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0] ?? null;
-    if (!selected) return;
-    if (!ACCEPTED_TYPES.includes(selected.type)) { setError('type'); setFile(null); return; }
-    if (selected.size > MAX_SIZE_BYTES)          { setError('size'); setFile(null); return; }
-    setError(null); setFile(selected); onChange(selected);
-  };
+    const incoming = Array.from(e.target.files ?? [])
+    if (!incoming.length) return
+    if (inputRef.current) inputRef.current.value = ''
 
-  const handleClear = () => {
-    setFile(null); setError(null); onChange(null);
-    if (inputRef.current) inputRef.current.value = '';
-  };
+    const unsupported = incoming.find(f => !ACCEPTED_MIME.includes(f.type))
+    if (unsupported) { setError(`"${unsupported.name}" is not a supported file type.`); return }
+    if (tiles.length + incoming.length > MAX_FILES) { setError('Maximum 5 files allowed.'); return }
 
-  const formatSize = (b: number) =>
-    b < 1024 * 1024 ? `${(b / 1024).toFixed(0)} KB` : `${(b / (1024 * 1024)).toFixed(1)} MB`;
+    const newTiles: FileTile[] = incoming.map(f => ({
+      file: f,
+      preview: f.type.startsWith('image/') ? URL.createObjectURL(f) : null,
+    }))
+    const next = [...tiles, ...newTiles]
+    const totalBytes = next.reduce((s, t) => s + t.file.size, 0)
+    if (totalBytes > MAX_TOTAL_BYTES) { setError('Combined size must be 50 MB or less.'); return }
+
+    setError(null)
+    setTiles(next)
+    onFilesChange(next.map(t => t.file))
+  }
+
+  const remove = (idx: number) => {
+    const removed = tiles[idx]
+    if (removed.preview) URL.revokeObjectURL(removed.preview)
+    const next = tiles.filter((_, i) => i !== idx)
+    setTiles(next)
+    setError(null)
+    onFilesChange(next.map(t => t.file))
+  }
 
   return (
     <div>
-      <input ref={inputRef} type="file" accept=".pdf,.docx,.png,.jpg,.jpeg"
-             className="sr-only" onChange={handleSelect} aria-label="Attach a file" />
-
-      {!file ? (
-        <button type="button" onClick={() => inputRef.current?.click()}
-          className="inline-flex items-center gap-2 px-4 py-2 border border-primary
-                     text-primary rounded-lg text-sm font-medium
-                     hover:bg-primary/5 transition-colors duration-200 cursor-pointer
-                     focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
-          <Paperclip className="w-4 h-4" />
-          Attach a file
-        </button>
-      ) : (
-        <div className="flex items-center gap-3 px-4 py-3 border border-border rounded-lg bg-white">
-          <Paperclip className="w-4 h-4 text-slate-400 shrink-0" />
-          <span className="flex-1 text-sm text-slate-700 truncate">
-            {file.name} <span className="text-slate-400">({formatSize(file.size)})</span>
-          </span>
-          <button type="button" onClick={handleClear} aria-label="Remove file"
-            className="text-slate-400 hover:text-slate-600 transition-colors duration-200
-                       cursor-pointer focus-visible:outline-none
-                       focus-visible:ring-2 focus-visible:ring-primary/40 rounded">
-            <X className="w-4 h-4" />
-          </button>
+      {tiles.length > 0 && (
+        <div className="flex flex-wrap gap-3 mb-3">
+          {tiles.map((tile, idx) => (
+            <div key={idx} className="relative w-20 h-20 rounded-lg border border-border bg-white flex flex-col items-center justify-center overflow-hidden shrink-0">
+              {tile.preview ? (
+                <img src={tile.preview} alt={tile.file.name} className="w-full h-full object-cover rounded-lg" />
+              ) : (
+                <>
+                  {getFileIcon(tile.file.type)}
+                  <span className="text-[10px] text-slate-500 text-center truncate w-full px-1 mt-1">
+                    {tile.file.name}
+                  </span>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => remove(idx)}
+                aria-label={`Remove ${tile.file.name}`}
+                className="absolute top-0.5 right-0.5 w-5 h-5 flex items-center justify-center rounded-full bg-white/90 text-slate-500 hover:text-red-500 hover:bg-white transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
-      {error === 'type' && (
-        <p className="text-red-500 text-xs mt-1">Only PDF, DOCX, PNG, and JPG files are accepted.</p>
-      )}
-      {error === 'size' && (
-        <p className="text-red-500 text-xs mt-1">File must be 10 MB or smaller.</p>
-      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept={ACCEPTED_EXT}
+        multiple
+        className="sr-only"
+        onChange={handleSelect}
+        aria-label="Attach files"
+      />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        className="inline-flex items-center gap-2 px-4 py-2 border border-primary text-primary rounded-lg text-sm font-medium hover:bg-primary/5 transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+      >
+        <Paperclip className="w-4 h-4" />
+        Attach files
+      </button>
+
+      {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
     </div>
-  );
+  )
 }
 ```
 
-**Icons:** `Paperclip`, `X` from `lucide-react`. Do **not** use emojis or custom SVGs.
+**Icons:** `Paperclip`, `X`, `FileText`, `Video`, `Presentation` from `lucide-react`. Do **not** use emojis or custom SVGs.
+
+**State ownership:** `FileUploadControl` manages internal tile + preview state and fires `onFilesChange`.
+`SubmitIdeaPage` holds canonical `attachedFiles: File[]` (updated via `onFilesChange`) and builds FormData.
+There is exactly **one** source of truth for `File[]`: `SubmitIdeaPage`.
+
+---
+
+### Attachments Section
+
+Read-only display of an idea's attachments on the detail page. Renders images inline; non-images as icon + filename + conditional download link. Renders nothing when `attachments` is empty.
+
+**Props:**
+
+| Prop | Type | Purpose |
+|------|------|---------|
+| `attachments` | `AttachmentInfo[]` | List of attachment metadata from the API |
+| `ideaId` | `string` | Parent idea ID — used to build the download URL |
+| `canDownload` | `boolean` | Show download link for non-image attachments (submitter or admin) |
+
+**Per-attachment rendering rules:**
+
+| `is_image` | `canDownload` | Rendered as |
+|------------|---------------|-------------|
+| `true` | any | `<img>` inline, full width, rounded |
+| `false` | `true` | Icon + filename + `<a download>` link |
+| `false` | `false` | Icon + filename only (no link) |
+
+**Download URL pattern:** `/api/v1/ideas/{ideaId}/attachments/{attachment.id}`
+
+```
+// Section wrapper (when attachments.length > 0)
+mt-10 pt-6 border-t border-border
+
+// Section heading
+text-sm font-semibold text-slate-700 mb-4
+
+// Attachment list
+flex flex-col gap-4
+
+// Inline image
+w-full max-h-96 object-contain rounded-lg border border-border
+
+// Non-image row
+flex items-center gap-3
+
+// File icon (non-image)
+w-5 h-5 text-slate-400 shrink-0
+
+// Filename
+text-sm text-slate-700 flex-1 truncate
+
+// Download link
+text-sm text-primary font-medium hover:underline underline-offset-2
+transition-colors duration-200 cursor-pointer shrink-0
+```
+
+**TSX pattern:**
+
+```tsx
+import { FileText, Video, Presentation, Paperclip, Download } from 'lucide-react'
+import type { AttachmentInfo } from '@/types/ideas'
+
+function getAttachmentIcon(mime: string) {
+  if (mime === 'video/mp4' || mime === 'video/quicktime') return <Video className="w-5 h-5 text-slate-400 shrink-0" />
+  if (mime.includes('presentationml') || mime === 'application/vnd.ms-powerpoint')
+    return <Presentation className="w-5 h-5 text-slate-400 shrink-0" />
+  if (mime.includes('wordprocessing') || mime === 'application/msword' || mime === 'application/pdf')
+    return <FileText className="w-5 h-5 text-slate-400 shrink-0" />
+  return <Paperclip className="w-5 h-5 text-slate-400 shrink-0" />
+}
+
+interface AttachmentsSectionProps {
+  attachments: AttachmentInfo[]
+  ideaId: string
+  canDownload: boolean
+}
+
+export function AttachmentsSection({ attachments, ideaId, canDownload }: AttachmentsSectionProps) {
+  if (attachments.length === 0) return null
+
+  return (
+    <div className="mt-10 pt-6 border-t border-border">
+      <p className="text-sm font-semibold text-slate-700 mb-4">Attachments</p>
+      <div className="flex flex-col gap-4">
+        {attachments.map(attachment => (
+          <div key={attachment.id}>
+            {attachment.is_image ? (
+              <img
+                src={`/api/v1/ideas/${ideaId}/attachments/${attachment.id}`}
+                alt={attachment.name}
+                className="w-full max-h-96 object-contain rounded-lg border border-border"
+              />
+            ) : (
+              <div className="flex items-center gap-3">
+                {getAttachmentIcon(attachment.mime_type)}
+                <span className="text-sm text-slate-700 flex-1 truncate">{attachment.name}</span>
+                {canDownload && (
+                  <a
+                    href={`/api/v1/ideas/${ideaId}/attachments/${attachment.id}`}
+                    download={attachment.name}
+                    className="text-sm text-primary font-medium hover:underline underline-offset-2 transition-colors duration-200 cursor-pointer shrink-0 inline-flex items-center gap-1"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Download
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+```
+
+**Accessibility:** Each `<img>` has `alt={attachment.name}`. Download links have visible text. Icon-only buttons have `aria-label`.
+
+**Icons used:** `FileText`, `Video`, `Presentation`, `Paperclip`, `Download` from `lucide-react`.
 
 ---
 

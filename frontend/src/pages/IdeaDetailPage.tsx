@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext'
 import { getIdea, evaluateIdea } from '@/api/ideas'
 import type { IdeaDetailResponse, EvaluateIdeaRequest } from '@/types/ideas'
 import { CategoryBadge } from '@/components/ideas/CategoryBadge'
-import { FileDownloadBlock } from '@/components/ideas/FileDownloadBlock'
+import { AttachmentsSection } from '@/components/ideas/AttachmentsSection'
 import { EvaluationStatusBadge } from '@/components/ideas/EvaluationStatusBadge'
 import { EvaluationForm } from '@/components/ideas/EvaluationForm'
 import { ExtraDataDetails } from '@/components/ideas/ExtraDataDetails'
@@ -69,13 +69,12 @@ export default function IdeaDetailPage() {
 
         <ExtraDataDetails category={idea.category} extra_data={idea.extra_data} />
 
-        {canDownload && idea.file && (
+        {idea.attachments.length > 0 && (
           <div className="mt-10 pt-6 border-t border-border">
-            <FileDownloadBlock
-              file={{
-                name: idea.file.name,
-                url: `/api/v1/ideas/${idea.id}/attachment`,
-              }}
+            <AttachmentsSection
+              attachments={idea.attachments}
+              ideaId={idea.id}
+              canDownload={canDownload}
             />
           </div>
         )}

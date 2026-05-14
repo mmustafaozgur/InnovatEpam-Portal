@@ -56,7 +56,7 @@ async def test_create_idea_returns_detail_response(test_db):
     assert result.description == "A description"
     assert result.category == "technology"
     assert result.submitter_name == user.full_name
-    assert result.file is None
+    assert result.attachments == []
     assert result.evaluation.status == "submitted"
 
 
@@ -113,72 +113,9 @@ async def test_get_idea_raises_404_on_miss(test_db):
 
 
 # ---------------------------------------------------------------------------
-# File validation — existing tests
+# File validation — legacy single-file tests removed (renamed to validate_files /
+# save_files_atomic in feature 006); equivalent coverage is in the T008 block below.
 # ---------------------------------------------------------------------------
-
-def test_validate_file_accepted_pdf():
-    mock_file = MagicMock()
-    mock_file.content_type = "application/pdf"
-    mock_file.filename = "test.pdf"
-    mock_file.size = 1024
-    idea_service.validate_file(mock_file)
-
-
-def test_validate_file_accepted_docx():
-    mock_file = MagicMock()
-    mock_file.content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    mock_file.filename = "test.docx"
-    mock_file.size = 1024
-    idea_service.validate_file(mock_file)
-
-
-def test_validate_file_accepted_png():
-    mock_file = MagicMock()
-    mock_file.content_type = "image/png"
-    mock_file.filename = "test.png"
-    mock_file.size = 1024
-    idea_service.validate_file(mock_file)
-
-
-def test_validate_file_accepted_jpg():
-    mock_file = MagicMock()
-    mock_file.content_type = "image/jpeg"
-    mock_file.filename = "test.jpg"
-    mock_file.size = 1024
-    idea_service.validate_file(mock_file)
-
-
-def test_validate_file_disallowed_type_raises():
-    from fastapi import HTTPException
-    mock_file = MagicMock()
-    mock_file.content_type = "text/plain"
-    mock_file.filename = "test.txt"
-    mock_file.size = 1024
-    with pytest.raises(HTTPException) as exc_info:
-        idea_service.validate_file(mock_file)
-    assert exc_info.value.status_code == 400
-
-
-def test_validate_file_oversized_raises():
-    from fastapi import HTTPException
-    mock_file = MagicMock()
-    mock_file.content_type = "application/pdf"
-    mock_file.filename = "big.pdf"
-    mock_file.size = 11 * 1024 * 1024
-    with pytest.raises(HTTPException) as exc_info:
-        idea_service.validate_file(mock_file)
-    assert exc_info.value.status_code == 400
-
-
-@pytest.mark.asyncio
-async def test_save_file_writes_to_correct_path(tmp_path):
-    idea_id = "test-idea-123"
-    stored_name = "abc123.pdf"
-    data = b"fake pdf content"
-    dest = tmp_path / idea_id / stored_name
-    await idea_service.save_file(idea_id, dest, data)
-    assert dest.exists()
-    assert dest.read_bytes() == data
 
 
 # ---------------------------------------------------------------------------
@@ -506,3 +443,138 @@ async def test_U15_list_ideas_status_filter_and_mine(test_db):
     )
     assert result.total == 1
     assert result.ideas[0].id == idea_u1_sub.id
+
+
+# ---------------------------------------------------------------------------
+# T008 — Unit tests for validate_files() and save_files_atomic()
+# ---------------------------------------------------------------------------
+
+def _make_upload_file(mime: str, filename: str, size: int = 1024) -> MagicMock:
+    f = MagicMock()
+    f.content_type = mime
+    f.filename = filename
+    f.size = size
+    return f
+
+
+# validate_files — supported MIME types pass
+
+def test_validate_files_pdf_passes():
+    idea_service.validate_files([_make_upload_file("application/pdf", "doc.pdf")])
+
+
+def test_validate_files_png_passes():
+    idea_service.validate_files([_make_upload_file("image/png", "img.png")])
+
+
+def test_validate_files_gif_passes():
+    idea_service.validate_files([_make_upload_file("image/gif", "anim.gif")])
+
+
+def test_validate_files_mp4_passes():
+    idea_service.validate_files([_make_upload_file("video/mp4", "clip.mp4")])
+
+
+def test_validate_files_mov_passes():
+    idea_service.validate_files([_make_upload_file("video/quicktime", "clip.mov")])
+
+
+def test_validate_files_pptx_passes():
+    idea_service.validate_files([_make_upload_file(
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation", "deck.pptx"
+    )])
+
+
+def test_validate_files_ppt_passes():
+    idea_service.validate_files([_make_upload_file("application/vnd.ms-powerpoint", "deck.ppt")])
+
+
+def test_validate_files_doc_passes():
+    idea_service.validate_files([_make_upload_file("application/msword", "letter.doc")])
+
+
+# validate_files — rejection cases
+
+def test_validate_files_unsupported_mime_raises_400():
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as exc_info:
+        idea_service.validate_files([_make_upload_file("text/plain", "bad.txt")])
+    assert exc_info.value.status_code == 400
+
+
+def test_validate_files_unsupported_extension_raises_400():
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as exc_info:
+        idea_service.validate_files([_make_upload_file("image/png", "bad.exe")])
+    assert exc_info.value.status_code == 400
+
+
+def test_validate_files_more_than_5_raises_400():
+    from fastapi import HTTPException
+    files = [_make_upload_file("application/pdf", f"f{i}.pdf") for i in range(6)]
+    with pytest.raises(HTTPException) as exc_info:
+        idea_service.validate_files(files)
+    assert exc_info.value.status_code == 400
+
+
+def test_validate_files_exactly_5_passes():
+    files = [_make_upload_file("application/pdf", f"f{i}.pdf") for i in range(5)]
+    idea_service.validate_files(files)  # must not raise
+
+
+def test_validate_files_total_size_exceeded_raises_400():
+    from fastapi import HTTPException
+    # 3 files × 20 MB each = 60 MB total (> 50 MB limit)
+    twenty_mb = 20 * 1024 * 1024
+    files = [_make_upload_file("application/pdf", f"f{i}.pdf", size=twenty_mb) for i in range(3)]
+    with pytest.raises(HTTPException) as exc_info:
+        idea_service.validate_files(files)
+    assert exc_info.value.status_code == 400
+
+
+def test_validate_files_empty_list_passes():
+    idea_service.validate_files([])  # no files is valid (attachments are optional)
+
+
+# save_files_atomic — happy path
+
+@pytest.mark.asyncio
+async def test_save_files_atomic_writes_all_files(tmp_path):
+    idea_id = "test-atomic-idea"
+    pairs = [
+        (tmp_path / idea_id / "file1.pdf", b"pdf content"),
+        (tmp_path / idea_id / "file2.png", b"png content"),
+    ]
+    await idea_service.save_files_atomic(idea_id, pairs)
+    for dest, data in pairs:
+        assert dest.exists()
+        assert dest.read_bytes() == data
+
+
+# save_files_atomic — rollback on OSError
+
+@pytest.mark.asyncio
+async def test_save_files_atomic_rolls_back_on_error(tmp_path, monkeypatch):
+    from fastapi import HTTPException
+
+    idea_id = "test-rollback-idea"
+    dest1 = tmp_path / idea_id / "file1.pdf"
+    dest2 = tmp_path / idea_id / "file2.pdf"
+
+    call_count = {"n": 0}
+    original_write = idea_service._write_bytes
+
+    def failing_write(dest, data):
+        call_count["n"] += 1
+        if call_count["n"] == 2:
+            raise OSError("Simulated disk error")
+        original_write(dest, data)
+
+    monkeypatch.setattr(idea_service, "_write_bytes", failing_write)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await idea_service.save_files_atomic(idea_id, [(dest1, b"data1"), (dest2, b"data2")])
+
+    assert exc_info.value.status_code == 500
+    # First file must be cleaned up (rolled back)
+    assert not dest1.exists()

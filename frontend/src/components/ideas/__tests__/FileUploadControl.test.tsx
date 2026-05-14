@@ -1,61 +1,92 @@
 import { render, screen, fireEvent } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { vi } from 'vitest'
+import { vi, beforeEach } from 'vitest'
 import { FileUploadControl } from '../FileUploadControl'
 
-function makePdf(size = 1024) {
-  return new File([new Uint8Array(size)], 'test.pdf', { type: 'application/pdf' })
-}
+globalThis.URL.createObjectURL = vi.fn(() => 'blob:fake-url')
+globalThis.URL.revokeObjectURL = vi.fn()
+
+const MB = 1024 * 1024
 
 function makeFile(name: string, type: string, size = 1024) {
   return new File([new Uint8Array(size)], name, { type })
 }
 
-describe('FileUploadControl', () => {
-  it('shows Attach a file button in idle state', () => {
-    render(<FileUploadControl onChange={vi.fn()} />)
-    expect(screen.getByText(/attach a file/i)).toBeInTheDocument()
+describe('FileUploadControl (multi-file)', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('shows Attach files button in idle state', () => {
+    render(<FileUploadControl onFilesChange={vi.fn()} />)
+    expect(screen.getByText(/attach files/i)).toBeInTheDocument()
   })
 
-  it('shows filename and clear button after selecting valid file', async () => {
-    const onChange = vi.fn()
-    render(<FileUploadControl onChange={onChange} />)
-
-    const input = screen.getByLabelText(/attach a file/i)
-    const file = makePdf()
-    await userEvent.upload(input, file)
-
-    expect(screen.getByText(/test\.pdf/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /remove file/i })).toBeInTheDocument()
-    expect(onChange).toHaveBeenCalledWith(file)
+  it('image tile renders <img> thumbnail with alt=filename', () => {
+    render(<FileUploadControl onFilesChange={vi.fn()} />)
+    const input = screen.getByLabelText(/attach files/i)
+    fireEvent.change(input, { target: { files: [makeFile('photo.png', 'image/png')] } })
+    expect(screen.getByRole('img', { name: /photo\.png/i })).toBeInTheDocument()
   })
 
-  it('shows type error for wrong MIME type', () => {
-    render(<FileUploadControl onChange={vi.fn()} />)
-    const input = screen.getByLabelText(/attach a file/i)
-    const file = makeFile('bad.txt', 'text/plain')
-    // Use fireEvent to bypass userEvent's accept-attribute filtering
-    fireEvent.change(input, { target: { files: [file] } })
-    expect(screen.getByText(/only pdf, docx, png, and jpg/i)).toBeInTheDocument()
+  it('non-image tile renders icon and filename, no <img>', () => {
+    render(<FileUploadControl onFilesChange={vi.fn()} />)
+    const input = screen.getByLabelText(/attach files/i)
+    fireEvent.change(input, { target: { files: [makeFile('report.pdf', 'application/pdf')] } })
+    expect(screen.getByText('report.pdf')).toBeInTheDocument()
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
   })
 
-  it('shows size error for oversized file', () => {
-    render(<FileUploadControl onChange={vi.fn()} />)
-    const input = screen.getByLabelText(/attach a file/i)
-    const file = makeFile('big.pdf', 'application/pdf', 11 * 1024 * 1024)
-    // Use fireEvent to bypass userEvent size limits
-    fireEvent.change(input, { target: { files: [file] } })
-    expect(screen.getByText(/10 mb or smaller/i)).toBeInTheDocument()
+  it('remove button removes only that tile; remaining tiles stay', () => {
+    const onFilesChange = vi.fn()
+    render(<FileUploadControl onFilesChange={onFilesChange} />)
+    const input = screen.getByLabelText(/attach files/i)
+    fireEvent.change(input, {
+      target: {
+        files: [makeFile('doc.pdf', 'application/pdf'), makeFile('photo.png', 'image/png')],
+      },
+    })
+    const removeBtns = screen.getAllByRole('button', { name: /remove/i })
+    fireEvent.click(removeBtns[0])
+    expect(screen.queryByText('doc.pdf')).not.toBeInTheDocument()
+    expect(screen.getByRole('img')).toBeInTheDocument()
+    const lastFiles = onFilesChange.mock.calls.at(-1)![0] as File[]
+    expect(lastFiles).toHaveLength(1)
+    expect(lastFiles[0].name).toBe('photo.png')
   })
 
-  it('resets to idle state when clear button is clicked', async () => {
-    const onChange = vi.fn()
-    render(<FileUploadControl onChange={onChange} />)
-    const input = screen.getByLabelText(/attach a file/i)
-    await userEvent.upload(input, makePdf())
-    const clearBtn = screen.getByRole('button', { name: /remove file/i })
-    await userEvent.click(clearBtn)
-    expect(screen.getByText(/attach a file/i)).toBeInTheDocument()
-    expect(onChange).toHaveBeenLastCalledWith(null)
+  it('shows count error when adding a 6th file', () => {
+    render(<FileUploadControl onFilesChange={vi.fn()} />)
+    const input = screen.getByLabelText(/attach files/i)
+    fireEvent.change(input, {
+      target: { files: Array.from({ length: 5 }, (_, i) => makeFile(`f${i}.pdf`, 'application/pdf')) },
+    })
+    fireEvent.change(input, { target: { files: [makeFile('extra.pdf', 'application/pdf')] } })
+    expect(screen.getByText(/maximum 5 files/i)).toBeInTheDocument()
+  })
+
+  it('shows size error when total combined size exceeds 50 MB', () => {
+    render(<FileUploadControl onFilesChange={vi.fn()} />)
+    const input = screen.getByLabelText(/attach files/i)
+    fireEvent.change(input, {
+      target: { files: Array.from({ length: 3 }, (_, i) => makeFile(`big${i}.pdf`, 'application/pdf', 20 * MB)) },
+    })
+    expect(screen.getByText(/50 mb/i)).toBeInTheDocument()
+  })
+
+  it('onFilesChange fires with correct File[] after files added', () => {
+    const onFilesChange = vi.fn()
+    render(<FileUploadControl onFilesChange={onFilesChange} />)
+    const input = screen.getByLabelText(/attach files/i)
+    const pdf = makeFile('doc.pdf', 'application/pdf')
+    fireEvent.change(input, { target: { files: [pdf] } })
+    expect(onFilesChange).toHaveBeenCalledWith([pdf])
+  })
+
+  it('onFilesChange fires with empty array after removing last file', () => {
+    const onFilesChange = vi.fn()
+    render(<FileUploadControl onFilesChange={onFilesChange} />)
+    const input = screen.getByLabelText(/attach files/i)
+    fireEvent.change(input, { target: { files: [makeFile('doc.pdf', 'application/pdf')] } })
+    onFilesChange.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: /remove/i }))
+    expect(onFilesChange).toHaveBeenCalledWith([])
   })
 })

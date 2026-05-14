@@ -22,12 +22,16 @@ const baseEvaluation = {
 const ideaNoFile = {
   id: 'i1', title: 'My Idea', description: 'A long description',
   category: 'technology', submitter_id: 'u1', submitter_name: 'Alice',
-  submitted_at: '2026-05-13T10:00:00Z', file: null,
-  evaluation: baseEvaluation,
+  submitted_at: '2026-05-13T10:00:00Z', attachments: [],
+  evaluation: baseEvaluation, extra_data: null,
 }
 const ideaWithFile = {
   ...ideaNoFile,
-  file: { name: 'doc.pdf', size: 2048, mime_type: 'application/pdf' },
+  attachments: [{ id: 'a1', name: 'doc.pdf', size: 2048, mime_type: 'application/pdf', is_image: false }],
+}
+const ideaWithImage = {
+  ...ideaNoFile,
+  attachments: [{ id: 'a2', name: 'photo.png', size: 1024, mime_type: 'image/png', is_image: true }],
 }
 
 function renderWithAuth(userId: string, role: 'submitter' | 'admin') {
@@ -55,25 +59,39 @@ describe('IdeaDetailPage', () => {
     expect(screen.getByText(/2026-05-13/)).toBeInTheDocument()
   })
 
-  it('renders FileDownloadBlock when canDownload is true and file exists', async () => {
+  it('renders download link for non-image attachment when user is the submitter', async () => {
     ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(ideaWithFile)
-    renderWithAuth('u1', 'submitter') // same user as submitter_id
+    renderWithAuth('u1', 'submitter')
     await waitFor(() => expect(screen.getByText('doc.pdf')).toBeInTheDocument())
     expect(screen.getByRole('link', { name: /download/i })).toBeInTheDocument()
   })
 
-  it('does NOT render FileDownloadBlock for other Submitters', async () => {
+  it('does NOT render download link for non-owner submitter', async () => {
     ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(ideaWithFile)
-    renderWithAuth('other-user', 'submitter') // different user, not evaluator
+    renderWithAuth('other-user', 'submitter')
     await waitFor(() => expect(screen.getByText('My Idea')).toBeInTheDocument())
     expect(screen.queryByRole('link', { name: /download/i })).not.toBeInTheDocument()
   })
 
-  it('renders FileDownloadBlock for evaluator (admin) even if not submitter', async () => {
+  it('renders download link for admin even if not submitter', async () => {
     ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(ideaWithFile)
     renderWithAuth('other-user', 'admin')
     await waitFor(() => expect(screen.getByText('doc.pdf')).toBeInTheDocument())
     expect(screen.getByRole('link', { name: /download/i })).toBeInTheDocument()
+  })
+
+  it('renders inline <img> for image attachment regardless of canDownload', async () => {
+    ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(ideaWithImage)
+    renderWithAuth('other-user', 'submitter') // non-owner, non-admin
+    await waitFor(() => expect(screen.getByRole('img', { name: /photo\.png/i })).toBeInTheDocument())
+  })
+
+  it('renders without errors when attachments array is empty', async () => {
+    ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(ideaNoFile)
+    renderWithAuth('u1', 'submitter')
+    await waitFor(() => expect(screen.getByText('My Idea')).toBeInTheDocument())
+    expect(screen.queryByRole('img')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /download/i })).not.toBeInTheDocument()
   })
 })
 

@@ -1,22 +1,25 @@
 import json
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.config import settings
 from app.database import get_db
+from app.models.attachment import Attachment
 from app.models.idea import Idea
 from app.models.user import User
 from app.schemas.ideas import EvaluateIdeaRequest, EvaluationStatus, IdeaDetailResponse, IdeaListResponse
 from app.schemas.extra_data import validate_extra_data
 from app.services import idea_service
-from sqlalchemy import select
 
 router = APIRouter(prefix="/ideas", tags=["ideas"])
+
+_IMAGE_MIME: set[str] = {"image/png", "image/jpeg", "image/gif"}
 
 
 @router.post("", status_code=201, response_model=IdeaDetailResponse)
@@ -25,15 +28,16 @@ async def submit_idea(
     description: str = Form(...),
     category: str = Form(...),
     extra_data: Optional[str] = Form(None),
-    file: Optional[UploadFile] = File(None),
+    files: List[UploadFile] = File(default=[]),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IdeaDetailResponse:
     if current_user.role == "admin":
         raise HTTPException(status_code=403, detail="Evaluators cannot submit ideas.")
 
-    if file is not None and file.filename:
-        idea_service.validate_file(file)
+    non_empty = [f for f in files if f.filename]
+    if non_empty:
+        idea_service.validate_files(non_empty)
 
     parsed_extra: Optional[dict] = None
     if extra_data is not None:
@@ -46,7 +50,11 @@ async def submit_idea(
     if errors:
         raise HTTPException(status_code=422, detail={"extra_data": errors})
 
-    return await idea_service.create_idea(db, current_user, title, description, category, file, extra_data=parsed_extra)
+    return await idea_service.create_idea(
+        db, current_user, title, description, category,
+        non_empty if non_empty else None,
+        extra_data=parsed_extra,
+    )
 
 
 @router.get("", response_model=IdeaListResponse)
@@ -94,34 +102,42 @@ async def evaluate_idea(
     )
 
 
-@router.get("/{idea_id}/attachment")
+@router.get("/{idea_id}/attachments/{attachment_id}")
 async def download_attachment(
     idea_id: str,
+    attachment_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> FileResponse:
-    result = await db.execute(select(Idea).where(Idea.id == idea_id))
-    idea = result.scalar_one_or_none()
-    if idea is None:
-        raise HTTPException(status_code=404, detail="Idea not found.")
-    if idea.attachment_stored_name is None:
-        raise HTTPException(status_code=404, detail="No attachment.")
-
-    is_submitter = current_user.id == idea.submitter_id
-    is_evaluator = current_user.role == "admin"
-    if not (is_submitter or is_evaluator):
-        raise HTTPException(
-            status_code=403, detail="You are not authorised to download this file."
+    result = await db.execute(
+        select(Attachment).where(
+            Attachment.id == attachment_id,
+            Attachment.idea_id == idea_id,
         )
+    )
+    attachment = result.scalar_one_or_none()
+    if attachment is None:
+        raise HTTPException(status_code=404, detail="Attachment not found.")
 
-    file_path = settings.upload_path(idea_id, idea.attachment_stored_name)
+    is_image = attachment.mime_type in _IMAGE_MIME
+
+    if not is_image:
+        idea_result = await db.execute(select(Idea).where(Idea.id == idea_id))
+        idea = idea_result.scalar_one_or_none()
+        if idea is None:
+            raise HTTPException(status_code=404, detail="Idea not found.")
+        if current_user.id != idea.submitter_id and current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="You are not authorised to download this file.")
+
+    file_path = settings.upload_path(idea_id, attachment.stored_name)
     if not Path(file_path).exists():
         raise HTTPException(status_code=404, detail="Attachment file not found on disk.")
 
+    if is_image:
+        return FileResponse(path=str(file_path), media_type=attachment.mime_type)
+
     return FileResponse(
         path=str(file_path),
-        media_type=idea.attachment_mime_type or "application/octet-stream",
-        headers={
-            "Content-Disposition": f'attachment; filename="{idea.attachment_filename}"'
-        },
+        media_type=attachment.mime_type,
+        headers={"Content-Disposition": f'attachment; filename="{attachment.filename}"'},
     )

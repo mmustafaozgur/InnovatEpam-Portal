@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Index, CheckConstraint, text
+from sqlalchemy import Column, String, Index, CheckConstraint, text
 from app.models.user import Base
 
 
@@ -15,10 +15,6 @@ class Idea(Base):
         nullable=False,
         server_default=text("(strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"),
     )
-    attachment_filename = Column(String, nullable=True)
-    attachment_stored_name = Column(String, nullable=True)
-    attachment_mime_type = Column(String, nullable=True)
-    attachment_size = Column(Integer, nullable=True)
 
     # Evaluation columns (FR-001 to FR-013)
     evaluation_status = Column(
@@ -38,10 +34,6 @@ class Idea(Base):
         ),
         CheckConstraint("length(title) <= 150", name="ck_ideas_title_length"),
         CheckConstraint("length(description) <= 3000", name="ck_ideas_description_length"),
-        CheckConstraint(
-            "(attachment_filename IS NULL) = (attachment_stored_name IS NULL)",
-            name="ck_ideas_attachment_consistency",
-        ),
         CheckConstraint(
             "evaluation_status IN ('submitted','under_review','accepted','rejected')",
             name="ck_ideas_evaluation_status",
