@@ -12,8 +12,8 @@ export function ExtraDataDetails({ category, extra_data }: ExtraDataDetailsProps
   if (!extra_data || fields.length === 0) return null
 
   return (
-    <section className="mt-8 pt-6 border-t border-border">
-      <h2 className="text-sm font-semibold text-slate-700 mb-4">Details</h2>
+    <section className="mt-5 pt-5 border-t border-border">
+      <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Details</h2>
       <dl className="flex flex-col gap-3">
         {fields.map((field) => {
           const value = extra_data[field.key]

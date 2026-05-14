@@ -6,7 +6,7 @@ import { listIdeas } from '@/api/ideas'
 import type { IdeaListResponse, Stage } from '@/types/ideas'
 import { IdeasTableSkeleton } from '@/components/ideas/IdeasTableSkeleton'
 import { IdeasTable } from '@/components/ideas/IdeasTable'
-import { StageFilter } from '@/components/ideas/StageFilter'
+import { StageFilterCards } from '@/components/ideas/StageFilterCards'
 import { MineFilter } from '@/components/ideas/MineFilter'
 import { Button } from '@/components/ui/button'
 
@@ -15,17 +15,17 @@ export default function IdeasPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const mine = searchParams.get('mine') === '1'
   const page = parseInt(searchParams.get('page') ?? '1', 10)
-  const stage = (searchParams.get('stage') as Stage | null) ?? undefined
+  const stages = searchParams.getAll('stage') as Stage[]
 
   const [data, setData] = useState<IdeaListResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     setIsLoading(true)
-    listIdeas(page, 20, mine, stage)
+    listIdeas(page, 20, mine, stages.length > 0 ? stages : undefined)
       .then(setData)
       .finally(() => setIsLoading(false))
-  }, [page, mine, stage])
+  }, [page, mine, searchParams.toString()])
 
   const handleMineToggle = (checked: boolean) => {
     const next = new URLSearchParams(searchParams)
@@ -38,13 +38,10 @@ export default function IdeasPage() {
     setSearchParams(next)
   }
 
-  const handleStageChange = (newStage: Stage | undefined) => {
+  const handleStagesChange = (newStages: Stage[]) => {
     const next = new URLSearchParams(searchParams)
-    if (newStage) {
-      next.set('stage', newStage)
-    } else {
-      next.delete('stage')
-    }
+    next.delete('stage')
+    newStages.forEach(s => next.append('stage', s))
     next.set('page', '1')
     setSearchParams(next)
   }
@@ -65,8 +62,8 @@ export default function IdeasPage() {
     <div className="px-6 py-8">
       <h1 className="font-heading font-semibold text-xl text-primary mb-6">Ideas</h1>
 
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <StageFilter value={stage} onChange={handleStageChange} />
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <StageFilterCards value={stages} onChange={handleStagesChange} />
         {user?.role === 'submitter' && (
           <MineFilter value={mine} onChange={handleMineToggle} />
         )}

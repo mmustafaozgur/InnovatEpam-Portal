@@ -92,22 +92,29 @@ export default function Sidebar() {
         </nav>
 
         {/* User footer */}
-        <div className="px-4 py-4 border-t border-border space-y-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-sm font-medium text-slate-700 truncate flex-1">
-              {user?.full_name}
-            </span>
-            <Badge variant={user?.role === 'admin' ? 'admin' : 'submitter'}>
-              {user?.role}
-            </Badge>
+        <div className="px-4 py-4 border-t border-border">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <span className="text-primary font-bold text-sm" aria-hidden="true">
+                {user?.full_name?.charAt(0)?.toUpperCase()}
+              </span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-slate-700 truncate leading-tight">
+                {user?.full_name}
+              </p>
+              <Badge variant={user?.role === 'admin' ? 'admin' : 'submitter'} className="mt-1">
+                {user?.role}
+              </Badge>
+            </div>
           </div>
           <Button
             variant="ghost"
             size="sm"
-            className="w-full justify-start text-slate-500 hover:text-primary"
+            className="w-full justify-start text-slate-400 hover:text-red-500 hover:bg-red-50 text-xs"
             onClick={logout}
           >
-            <LogOut className="w-4 h-4 mr-2" aria-hidden="true" />
+            <LogOut className="w-3.5 h-3.5 mr-2" aria-hidden="true" />
             Sign Out
           </Button>
         </div>
