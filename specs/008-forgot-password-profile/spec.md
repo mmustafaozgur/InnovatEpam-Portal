@@ -93,7 +93,7 @@ Both admin and submitter users see a "My Profile" entry in the sidebar that navi
 
 - **FR-001**: The login page MUST display a "Forgot password?" link below the login form.
 - **FR-002**: Clicking "Forgot password?" MUST reveal an inline reset form on the same page (no page navigation).
-- **FR-003**: The inline reset form MUST contain: Email, New Password, Confirm New Password fields, and a "Reset Password" button.
+- **FR-003**: The inline reset form MUST contain: Email, New Password, Confirm New Password fields, and a "Reset Password" button. The Email field MUST accept only `@epam.com` addresses (this is an EPAM-internal portal; non-EPAM emails are rejected client-side before any server request).
 - **FR-004**: The system MUST validate that New Password is at least 8 characters before submitting.
 - **FR-005**: The system MUST validate that Confirm New Password matches New Password before submitting.
 - **FR-006**: On successful submission the system MUST look up the user by email, hash the new password, and update the stored password record.
@@ -112,7 +112,7 @@ Both admin and submitter users see a "My Profile" entry in the sidebar that navi
 - **FR-013**: The /profile page MUST display the user's email in a read-only (disabled) text field.
 - **FR-026**: The /profile page MUST present the Account Information and Change Password sections as separate, visually distinct cards/panels arranged vertically on a single scrollable page (no tabs).
 - **FR-014**: Clicking "Save Changes" MUST persist the updated full_name to the data store.
-- **FR-015**: On a successful save, the application MUST update the authenticated user's name in the global session context so it reflects immediately across all UI surfaces.
+- **FR-015**: On a successful save, the application MUST update the authenticated user's name in the global session context (via `updateUser()`) so it reflects immediately — without a page reload — in: (a) the sidebar user label, and (b) the full_name field pre-fill on the My Profile page. Any future UI surface that displays the user's name MUST consume the AuthContext value directly and not cache a local copy.
 - **FR-016**: If the save fails, an error message MUST be displayed to the user.
 
 **My Profile — Change Password**
