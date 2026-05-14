@@ -3,10 +3,10 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { Lightbulb } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { listIdeas } from '@/api/ideas'
-import type { IdeaListResponse, EvaluationStatus } from '@/types/ideas'
+import type { IdeaListResponse, Stage } from '@/types/ideas'
 import { IdeasTableSkeleton } from '@/components/ideas/IdeasTableSkeleton'
 import { IdeasTable } from '@/components/ideas/IdeasTable'
-import { StatusFilter } from '@/components/ideas/StatusFilter'
+import { StageFilter } from '@/components/ideas/StageFilter'
 import { MineFilter } from '@/components/ideas/MineFilter'
 import { Button } from '@/components/ui/button'
 
@@ -15,18 +15,17 @@ export default function IdeasPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const mine = searchParams.get('mine') === '1'
   const page = parseInt(searchParams.get('page') ?? '1', 10)
-  const status = (searchParams.get('status') as EvaluationStatus | null) ?? undefined
+  const stage = (searchParams.get('stage') as Stage | null) ?? undefined
 
   const [data, setData] = useState<IdeaListResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
     setIsLoading(true)
-    const req = status !== undefined
-      ? listIdeas(page, 20, mine, status)
-      : listIdeas(page, 20, mine)
-    req.then(setData).finally(() => setIsLoading(false))
-  }, [page, mine, status])
+    listIdeas(page, 20, mine, stage)
+      .then(setData)
+      .finally(() => setIsLoading(false))
+  }, [page, mine, stage])
 
   const handleMineToggle = (checked: boolean) => {
     const next = new URLSearchParams(searchParams)
@@ -39,12 +38,12 @@ export default function IdeasPage() {
     setSearchParams(next)
   }
 
-  const handleStatusChange = (newStatus: EvaluationStatus | undefined) => {
+  const handleStageChange = (newStage: Stage | undefined) => {
     const next = new URLSearchParams(searchParams)
-    if (newStatus) {
-      next.set('status', newStatus)
+    if (newStage) {
+      next.set('stage', newStage)
     } else {
-      next.delete('status')
+      next.delete('stage')
     }
     next.set('page', '1')
     setSearchParams(next)
@@ -67,7 +66,7 @@ export default function IdeasPage() {
       <h1 className="font-heading font-semibold text-xl text-primary mb-6">Ideas</h1>
 
       <div className="flex items-center justify-between gap-4 mb-4">
-        <StatusFilter value={status} onChange={handleStatusChange} />
+        <StageFilter value={stage} onChange={handleStageChange} />
         {user?.role === 'submitter' && (
           <MineFilter value={mine} onChange={handleMineToggle} />
         )}

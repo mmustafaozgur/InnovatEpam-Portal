@@ -9,7 +9,7 @@ from app.schemas.ideas import IdeaDetailResponse
 
 
 # ---------------------------------------------------------------------------
-# create_idea — existing tests
+# create_idea — existing tests (updated for new schema: current_stage replaces evaluation)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
@@ -57,11 +57,12 @@ async def test_create_idea_returns_detail_response(test_db):
     assert result.category == "technology"
     assert result.submitter_name == user.full_name
     assert result.attachments == []
-    assert result.evaluation.status == "submitted"
+    assert result.current_stage == "new_idea"
+    assert result.stage_reviews == []
 
 
 # ---------------------------------------------------------------------------
-# list_ideas and get_idea — existing tests
+# list_ideas and get_idea — existing tests (updated for new schema)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
@@ -113,12 +114,6 @@ async def test_get_idea_raises_404_on_miss(test_db):
 
 
 # ---------------------------------------------------------------------------
-# File validation — legacy single-file tests removed (renamed to validate_files /
-# save_files_atomic in feature 006); equivalent coverage is in the T008 block below.
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
 # mine filter unit tests
 # ---------------------------------------------------------------------------
 
@@ -156,293 +151,42 @@ async def test_list_ideas_submitter_id_filter_none_returns_all(test_db):
 
 
 # ---------------------------------------------------------------------------
-# T008 — Unit tests U-01 to U-10: evaluate_idea() state machine
+# list_ideas stage_filter unit tests (replaces old status_filter tests)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_U01_evaluate_submitted_to_under_review(test_db):
-    """U-01: submitted → under_review sets assigned_admin_id and evaluated_at."""
-    submitter = await create_test_user(test_db, role="submitter")
-    admin = await create_test_user(test_db, role="admin")
-    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
-
-    result = await idea_service.evaluate_idea(test_db, idea.id, admin, "under_review", "Looking good")
-
-    assert result.evaluation.status == "under_review"
-    assert result.evaluation.evaluated_at is not None
-    assert result.evaluation.assigned_admin_id == admin.id
-
-
-@pytest.mark.asyncio
-async def test_U02_evaluate_submitted_to_accepted_invalid(test_db):
-    """U-02: submitted → accepted is an invalid transition (must go via under_review)."""
-    from fastapi import HTTPException
-    submitter = await create_test_user(test_db, role="submitter")
-    admin = await create_test_user(test_db, role="admin")
-    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
-
-    with pytest.raises(HTTPException) as exc_info:
-        await idea_service.evaluate_idea(test_db, idea.id, admin, "accepted", None)
-    assert exc_info.value.status_code == 400
-
-
-@pytest.mark.asyncio
-async def test_U03_evaluate_under_review_to_accepted(test_db):
-    """U-03: under_review → accepted (assigned admin)."""
-    submitter = await create_test_user(test_db, role="submitter")
-    admin = await create_test_user(test_db, role="admin")
-    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
-    await idea_service.evaluate_idea(test_db, idea.id, admin, "under_review", None)
-
-    result = await idea_service.evaluate_idea(test_db, idea.id, admin, "accepted", "Great idea!")
-    assert result.evaluation.status == "accepted"
-
-
-@pytest.mark.asyncio
-async def test_U04_evaluate_under_review_to_rejected(test_db):
-    """U-04: under_review → rejected (assigned admin)."""
-    submitter = await create_test_user(test_db, role="submitter")
-    admin = await create_test_user(test_db, role="admin")
-    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
-    await idea_service.evaluate_idea(test_db, idea.id, admin, "under_review", None)
-
-    result = await idea_service.evaluate_idea(test_db, idea.id, admin, "rejected", "Not feasible")
-    assert result.evaluation.status == "rejected"
-
-
-@pytest.mark.asyncio
-async def test_U05_evaluate_accepted_is_locked(test_db):
-    """U-05: accepted → any is locked (409)."""
-    from fastapi import HTTPException
-    submitter = await create_test_user(test_db, role="submitter")
-    admin = await create_test_user(test_db, role="admin")
-    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
-    await idea_service.evaluate_idea(test_db, idea.id, admin, "under_review", None)
-    await idea_service.evaluate_idea(test_db, idea.id, admin, "accepted", None)
-
-    with pytest.raises(HTTPException) as exc_info:
-        await idea_service.evaluate_idea(test_db, idea.id, admin, "under_review", None)
-    assert exc_info.value.status_code == 409
-
-
-@pytest.mark.asyncio
-async def test_U06_evaluate_rejected_is_locked(test_db):
-    """U-06: rejected → any is locked (409)."""
-    from fastapi import HTTPException
-    submitter = await create_test_user(test_db, role="submitter")
-    admin = await create_test_user(test_db, role="admin")
-    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
-    await idea_service.evaluate_idea(test_db, idea.id, admin, "under_review", None)
-    await idea_service.evaluate_idea(test_db, idea.id, admin, "rejected", None)
-
-    with pytest.raises(HTTPException) as exc_info:
-        await idea_service.evaluate_idea(test_db, idea.id, admin, "under_review", None)
-    assert exc_info.value.status_code == 409
-
-
-@pytest.mark.asyncio
-async def test_U07_evaluate_non_assigned_admin_blocked(test_db):
-    """U-07: non-assigned admin cannot evaluate an idea in under_review."""
-    from fastapi import HTTPException
-    submitter = await create_test_user(test_db, role="submitter")
-    admin1 = await create_test_user(test_db, role="admin")
-    admin2 = await create_test_user(test_db, role="admin")
-    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
-    await idea_service.evaluate_idea(test_db, idea.id, admin1, "under_review", None)
-
-    with pytest.raises(HTTPException) as exc_info:
-        await idea_service.evaluate_idea(test_db, idea.id, admin2, "accepted", None)
-    assert exc_info.value.status_code == 403
-
-
-@pytest.mark.asyncio
-async def test_U08_evaluate_non_admin_rejected(test_db):
-    """U-08: non-admin user gets 403."""
-    from fastapi import HTTPException
-    submitter = await create_test_user(test_db, role="submitter")
-    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
-
-    with pytest.raises(HTTPException) as exc_info:
-        await idea_service.evaluate_idea(test_db, idea.id, submitter, "under_review", None)
-    assert exc_info.value.status_code == 403
-
-
-@pytest.mark.asyncio
-async def test_U09_comment_only_update_under_review(test_db):
-    """U-09: under_review → under_review updates comment and refreshes evaluated_at."""
-    import time
-    submitter = await create_test_user(test_db, role="submitter")
-    admin = await create_test_user(test_db, role="admin")
-    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
-    await idea_service.evaluate_idea(test_db, idea.id, admin, "under_review", "Initial comment")
-
-    result = await idea_service.evaluate_idea(test_db, idea.id, admin, "under_review", "Updated comment")
-    assert result.evaluation.status == "under_review"
-    assert result.evaluation.comment == "Updated comment"
-    assert result.evaluation.evaluated_at is not None
-
-
-@pytest.mark.asyncio
-async def test_U10_empty_comment_clears_previous(test_db):
-    """U-10: passing None as comment clears previous comment."""
-    submitter = await create_test_user(test_db, role="submitter")
-    admin = await create_test_user(test_db, role="admin")
-    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
-    await idea_service.evaluate_idea(test_db, idea.id, admin, "under_review", "Some comment")
-
-    result = await idea_service.evaluate_idea(test_db, idea.id, admin, "under_review", None)
-    assert result.evaluation.comment is None
-
-
-# ---------------------------------------------------------------------------
-# T012 — Unit tests U-11 to U-13: build_evaluation_info() visibility rules
-# ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_U11_submitter_sees_under_review_no_comment(test_db):
-    """U-11: submitter calling get_idea on under_review idea sees comment=None."""
-    submitter = await create_test_user(test_db, role="submitter")
-    admin = await create_test_user(test_db, role="admin")
-    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
-    await idea_service.evaluate_idea(test_db, idea.id, admin, "under_review", "Secret comment")
-
-    result = await idea_service.get_idea(test_db, idea.id, caller=submitter)
-    assert result.evaluation.status == "under_review"
-    assert result.evaluation.comment is None
-
-
-@pytest.mark.asyncio
-async def test_U12_admin_sees_under_review_with_comment(test_db):
-    """U-12: admin calling get_idea on under_review idea sees the comment."""
-    submitter = await create_test_user(test_db, role="submitter")
-    admin = await create_test_user(test_db, role="admin")
-    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
-    await idea_service.evaluate_idea(test_db, idea.id, admin, "under_review", "Visible to admin")
-
-    result = await idea_service.get_idea(test_db, idea.id, caller=admin)
-    assert result.evaluation.status == "under_review"
-    assert result.evaluation.comment == "Visible to admin"
-
-
-@pytest.mark.asyncio
-async def test_U13_submitter_sees_accepted_with_comment(test_db):
-    """U-13: submitter can see comment when idea is accepted."""
-    submitter = await create_test_user(test_db, role="submitter")
-    admin = await create_test_user(test_db, role="admin")
-    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
-    await idea_service.evaluate_idea(test_db, idea.id, admin, "under_review", None)
-    await idea_service.evaluate_idea(test_db, idea.id, admin, "accepted", "Congratulations!")
-
-    result = await idea_service.get_idea(test_db, idea.id, caller=submitter)
-    assert result.evaluation.status == "accepted"
-    assert result.evaluation.comment == "Congratulations!"
-
-
-# ---------------------------------------------------------------------------
-# T020 — Unit tests U-14 to U-15: list_ideas status_filter
-# ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_U14_list_ideas_status_filter_submitted(test_db):
-    """U-14: status_filter='submitted' returns only submitted ideas."""
+async def test_U14_list_ideas_stage_filter_new_idea(test_db):
+    """U-14: stage_filter='new_idea' returns only new ideas."""
     submitter = await create_test_user(test_db, role="submitter")
     admin = await create_test_user(test_db, role="admin")
     idea1 = await idea_service.create_idea(test_db, submitter, "Idea 1", "desc", "technology")
     idea2 = await idea_service.create_idea(test_db, submitter, "Idea 2", "desc", "other")
-    await idea_service.evaluate_idea(test_db, idea2.id, admin, "under_review", None)
+    await idea_service.advance_stage(test_db, idea2.id, admin.id, comment=None, outcome=None)
 
-    result = await idea_service.list_ideas(test_db, status_filter="submitted")
+    result = await idea_service.list_ideas(test_db, stage_filter="new_idea")
     assert result.total == 1
     assert result.ideas[0].id == idea1.id
-    assert result.ideas[0].evaluation_status == "submitted"
+    assert result.ideas[0].current_stage == "new_idea"
 
 
 @pytest.mark.asyncio
-async def test_U16_build_evaluation_info_includes_assigned_admin_name(test_db):
-    """U-16: build_evaluation_info populates assigned_admin_name for both admin and submitter callers."""
-    from sqlalchemy import select as sa_select
-    from app.models.idea import Idea as IdeaModel
-
-    submitter = await create_test_user(test_db, role="submitter")
-    admin = await create_test_user(test_db, role="admin")
-    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
-    await idea_service.evaluate_idea(test_db, idea.id, admin, "under_review", None)
-
-    result = await test_db.execute(sa_select(IdeaModel).where(IdeaModel.id == idea.id))
-    idea_model = result.scalar_one()
-
-    eval_admin = idea_service.build_evaluation_info(idea_model, admin, admin_name=admin.full_name)
-    assert eval_admin.assigned_admin_name == admin.full_name
-
-    eval_sub = idea_service.build_evaluation_info(idea_model, submitter, admin_name=admin.full_name)
-    assert eval_sub.assigned_admin_name == admin.full_name
-
-
-@pytest.mark.asyncio
-async def test_U17_get_idea_includes_assigned_admin_name(test_db):
-    """U-17: get_idea populates assigned_admin_name after evaluate."""
-    submitter = await create_test_user(test_db, role="submitter")
-    admin = await create_test_user(test_db, role="admin")
-    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
-    await idea_service.evaluate_idea(test_db, idea.id, admin, "under_review", None)
-
-    result = await idea_service.get_idea(test_db, idea.id, caller=submitter)
-    assert result.evaluation.assigned_admin_name == admin.full_name
-
-
-@pytest.mark.asyncio
-async def test_U18_list_ideas_includes_reviewer_name_for_under_review(test_db):
-    """U-18: list_ideas populates reviewer_name for under_review ideas."""
-    submitter = await create_test_user(test_db, role="submitter")
-    admin = await create_test_user(test_db, role="admin")
-    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
-    await idea_service.evaluate_idea(test_db, idea.id, admin, "under_review", None)
-
-    result = await idea_service.list_ideas(test_db, page=1, limit=10)
-    assert result.ideas[0].reviewer_name == admin.full_name
-
-
-@pytest.mark.asyncio
-async def test_U19_list_ideas_reviewer_name_null_for_submitted(test_db):
-    """U-19: list_ideas has reviewer_name=None for submitted ideas."""
-    submitter = await create_test_user(test_db, role="submitter")
-    await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
-
-    result = await idea_service.list_ideas(test_db, page=1, limit=10)
-    assert result.ideas[0].reviewer_name is None
-
-
-@pytest.mark.asyncio
-async def test_U13b_non_owner_submitter_cannot_see_comment_on_accepted(test_db):
-    owner    = await create_test_user(test_db, role="submitter")
-    stranger = await create_test_user(test_db, role="submitter")
-    admin    = await create_test_user(test_db, role="admin")
-    idea = await idea_service.create_idea(test_db, owner, "Idea", "desc", "technology")
-    await idea_service.evaluate_idea(test_db, idea.id, admin, "under_review", None)
-    await idea_service.evaluate_idea(test_db, idea.id, admin, "accepted", "Congrats!")
-
-    result = await idea_service.get_idea(test_db, idea.id, caller=stranger)
-    assert result.evaluation.comment is None
-
-
-@pytest.mark.asyncio
-async def test_U15_list_ideas_status_filter_and_mine(test_db):
-    """U-15: status_filter AND submitter_id_filter are ANDed together."""
+async def test_U15_list_ideas_stage_filter_and_mine(test_db):
+    """U-15: stage_filter AND submitter_id_filter are ANDed together."""
     user1 = await create_test_user(test_db, role="submitter")
     user2 = await create_test_user(test_db, role="submitter")
     admin = await create_test_user(test_db, role="admin")
 
-    idea_u1_sub = await idea_service.create_idea(test_db, user1, "U1 Submitted", "d", "technology")
-    idea_u1_rev = await idea_service.create_idea(test_db, user1, "U1 Review", "d", "other")
-    idea_u2_sub = await idea_service.create_idea(test_db, user2, "U2 Submitted", "d", "technology")
+    idea_u1_new = await idea_service.create_idea(test_db, user1, "U1 New", "d", "technology")
+    idea_u1_adv = await idea_service.create_idea(test_db, user1, "U1 Screening", "d", "other")
+    await idea_service.create_idea(test_db, user2, "U2 New", "d", "technology")
 
-    await idea_service.evaluate_idea(test_db, idea_u1_rev.id, admin, "under_review", None)
+    await idea_service.advance_stage(test_db, idea_u1_adv.id, admin.id, comment=None, outcome=None)
 
     result = await idea_service.list_ideas(
-        test_db, submitter_id_filter=user1.id, status_filter="submitted"
+        test_db, submitter_id_filter=user1.id, stage_filter="new_idea"
     )
     assert result.total == 1
-    assert result.ideas[0].id == idea_u1_sub.id
+    assert result.ideas[0].id == idea_u1_new.id
 
 
 # ---------------------------------------------------------------------------
@@ -456,8 +200,6 @@ def _make_upload_file(mime: str, filename: str, size: int = 1024) -> MagicMock:
     f.size = size
     return f
 
-
-# validate_files — supported MIME types pass
 
 def test_validate_files_pdf_passes():
     idea_service.validate_files([_make_upload_file("application/pdf", "doc.pdf")])
@@ -493,8 +235,6 @@ def test_validate_files_doc_passes():
     idea_service.validate_files([_make_upload_file("application/msword", "letter.doc")])
 
 
-# validate_files — rejection cases
-
 def test_validate_files_unsupported_mime_raises_400():
     from fastapi import HTTPException
     with pytest.raises(HTTPException) as exc_info:
@@ -519,12 +259,11 @@ def test_validate_files_more_than_5_raises_400():
 
 def test_validate_files_exactly_5_passes():
     files = [_make_upload_file("application/pdf", f"f{i}.pdf") for i in range(5)]
-    idea_service.validate_files(files)  # must not raise
+    idea_service.validate_files(files)
 
 
 def test_validate_files_total_size_exceeded_raises_400():
     from fastapi import HTTPException
-    # 3 files × 20 MB each = 60 MB total (> 50 MB limit)
     twenty_mb = 20 * 1024 * 1024
     files = [_make_upload_file("application/pdf", f"f{i}.pdf", size=twenty_mb) for i in range(3)]
     with pytest.raises(HTTPException) as exc_info:
@@ -533,10 +272,8 @@ def test_validate_files_total_size_exceeded_raises_400():
 
 
 def test_validate_files_empty_list_passes():
-    idea_service.validate_files([])  # no files is valid (attachments are optional)
+    idea_service.validate_files([])
 
-
-# save_files_atomic — happy path
 
 @pytest.mark.asyncio
 async def test_save_files_atomic_writes_all_files(tmp_path):
@@ -550,8 +287,6 @@ async def test_save_files_atomic_writes_all_files(tmp_path):
         assert dest.exists()
         assert dest.read_bytes() == data
 
-
-# save_files_atomic — rollback on OSError
 
 @pytest.mark.asyncio
 async def test_save_files_atomic_rolls_back_on_error(tmp_path, monkeypatch):
@@ -576,5 +311,125 @@ async def test_save_files_atomic_rolls_back_on_error(tmp_path, monkeypatch):
         await idea_service.save_files_atomic(idea_id, [(dest1, b"data1"), (dest2, b"data2")])
 
     assert exc_info.value.status_code == 500
-    # First file must be cleaned up (rolled back)
     assert not dest1.exists()
+
+
+# ---------------------------------------------------------------------------
+# T001 — Failing unit tests for advance_stage() [TDD Gate — RED STATE]
+# advance_stage() does not exist yet; all tests below fail with AttributeError.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_AS01_advance_stage_new_idea_to_initial_screening(test_db):
+    """AS-01: new_idea → initial_screening assigns acting admin and creates stage_review."""
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
+
+    result = await idea_service.advance_stage(test_db, idea.id, admin.id, comment="Initial check", outcome=None)
+
+    assert result.current_stage == "initial_screening"
+    assert result.assigned_admin_id == admin.id
+    assert len(result.stage_reviews) == 1
+    assert result.stage_reviews[0].stage == "initial_screening"
+    assert result.stage_reviews[0].outcome is None
+
+
+@pytest.mark.asyncio
+async def test_AS02_advance_stage_sequential_three_steps(test_db):
+    """AS-02: Sequential advances through new_idea → initial_screening → technical_review."""
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
+
+    r1 = await idea_service.advance_stage(test_db, idea.id, admin.id, comment=None, outcome=None)
+    assert r1.current_stage == "initial_screening"
+
+    r2 = await idea_service.advance_stage(test_db, idea.id, admin.id, comment=None, outcome=None)
+    assert r2.current_stage == "technical_review"
+    assert len(r2.stage_reviews) == 2
+
+
+@pytest.mark.asyncio
+async def test_AS03_advance_stage_non_assigned_admin_403(test_db):
+    """AS-03: Non-assigned admin rejected after initial claim."""
+    from fastapi import HTTPException
+    submitter = await create_test_user(test_db, role="submitter")
+    admin1 = await create_test_user(test_db, role="admin")
+    admin2 = await create_test_user(test_db, role="admin")
+    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
+    await idea_service.advance_stage(test_db, idea.id, admin1.id, comment=None, outcome=None)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await idea_service.advance_stage(test_db, idea.id, admin2.id, comment=None, outcome=None)
+    assert exc_info.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_AS04_advance_stage_comment_over_1000_chars_422(test_db):
+    """AS-04: Comment exceeding 1000 chars rejected with 422 (SC-007)."""
+    from fastapi import HTTPException
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await idea_service.advance_stage(test_db, idea.id, admin.id, comment="x" * 1001, outcome=None)
+    assert exc_info.value.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_AS05_advance_stage_locked_idea_422(test_db):
+    """AS-05: Advancing a final_selection (locked) idea is rejected with 422."""
+    from fastapi import HTTPException
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
+    await idea_service.advance_stage(test_db, idea.id, admin.id, comment=None, outcome=None)
+    await idea_service.advance_stage(test_db, idea.id, admin.id, comment=None, outcome=None)
+    await idea_service.advance_stage(test_db, idea.id, admin.id, comment=None, outcome=None)
+    await idea_service.advance_stage(test_db, idea.id, admin.id, comment=None, outcome="accepted")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await idea_service.advance_stage(test_db, idea.id, admin.id, comment=None, outcome=None)
+    assert exc_info.value.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_AS06_advance_stage_race_condition_409(test_db):
+    """AS-06: First-admin race condition — 409 when idea already claimed by another admin."""
+    from fastapi import HTTPException
+    from sqlalchemy import update
+    from app.models.idea import Idea as IdeaModel
+
+    submitter = await create_test_user(test_db, role="submitter")
+    admin1 = await create_test_user(test_db, role="admin")
+    admin2 = await create_test_user(test_db, role="admin")
+    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
+
+    # Simulate race: idea is still new_idea but assigned_admin_id is already set by admin1
+    await test_db.execute(
+        update(IdeaModel)
+        .where(IdeaModel.id == idea.id)
+        .values(assigned_admin_id=admin1.id)
+    )
+    await test_db.commit()
+
+    with pytest.raises(HTTPException) as exc_info:
+        await idea_service.advance_stage(test_db, idea.id, admin2.id, comment=None, outcome=None)
+    assert exc_info.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_AS07_advance_stage_creates_immutable_stage_review_record(test_db):
+    """AS-07: Each advance creates exactly one stage_review record (immutable audit trail)."""
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+    idea = await idea_service.create_idea(test_db, submitter, "Idea", "desc", "technology")
+
+    await idea_service.advance_stage(test_db, idea.id, admin.id, comment="Step one", outcome=None)
+    result = await idea_service.advance_stage(test_db, idea.id, admin.id, comment="Step two", outcome=None)
+
+    assert len(result.stage_reviews) == 2
+    stages = [r.stage for r in result.stage_reviews]
+    assert stages == ["initial_screening", "technical_review"]

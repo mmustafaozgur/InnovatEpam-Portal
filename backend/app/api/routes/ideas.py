@@ -13,7 +13,7 @@ from app.database import get_db
 from app.models.attachment import Attachment
 from app.models.idea import Idea
 from app.models.user import User
-from app.schemas.ideas import EvaluateIdeaRequest, EvaluationStatus, IdeaDetailResponse, IdeaListResponse
+from app.schemas.ideas import AdvanceStageRequest, IdeaDetailResponse, IdeaListResponse, Stage
 from app.schemas.extra_data import validate_extra_data
 from app.services import idea_service
 
@@ -62,7 +62,7 @@ async def list_ideas(
     page: int = 1,
     limit: int = 20,
     mine: bool = Query(False, description="Filter to current user's ideas"),
-    status: Optional[EvaluationStatus] = Query(None, description="Filter by evaluation status"),
+    stage: Optional[Stage] = Query(None, description="Filter by current stage"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IdeaListResponse:
@@ -73,7 +73,7 @@ async def list_ideas(
         page=page,
         limit=limit,
         submitter_id_filter=submitter_id_filter,
-        status_filter=status,
+        stage_filter=stage,
     )
 
 
@@ -86,19 +86,21 @@ async def get_idea(
     return await idea_service.get_idea(db, idea_id, caller=current_user)
 
 
-@router.patch("/{idea_id}/evaluate", response_model=IdeaDetailResponse)
-async def evaluate_idea(
+@router.post("/{idea_id}/reviews", status_code=201, response_model=IdeaDetailResponse)
+async def advance_stage(
     idea_id: str,
-    body: EvaluateIdeaRequest,
+    body: AdvanceStageRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> IdeaDetailResponse:
-    return await idea_service.evaluate_idea(
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins may advance ideas.")
+    return await idea_service.advance_stage(
         db,
         idea_id=idea_id,
-        acting_admin=current_user,
-        new_status=body.status,
+        acting_admin_id=current_user.id,
         comment=body.comment,
+        outcome=body.outcome,
     )
 
 
