@@ -106,7 +106,7 @@ The ideas data table on the Ideas page is reorganised so columns appear in a log
 
 ### User Story 6 - Privacy Policy Modal on Register Screen (Priority: P3)
 
-On the registration screen, the "Privacy Policy" text link is replaced by a button that opens a modal dialog. The modal displays a "Privacy Policy" heading and placeholder body content, with a "Close" button to dismiss it.
+On the registration screen, the "Privacy Policy" text link is replaced by a button that opens a modal dialog. The modal displays a "Privacy Policy" heading and a body with the text "Our privacy policy will be published here. Please contact your EPAM administrator for details.", with a "Close" button to dismiss it.
 
 **Why this priority**: The change removes a broken or out-of-scope external link, keeping users in-context while providing a placeholder for future legal content. It is a low-complexity, low-risk change.
 
@@ -162,7 +162,7 @@ All pages are audited for visual consistency against the design system: padding,
 - **FR-011**: Both confirmation dialogs MUST be keyboard-accessible: Escape MUST close the dialog without action; Enter on the focused confirm button MUST submit.
 - **FR-012**: Submitting the idea form without a category selected MUST show the message "Please select a category before submitting." (not a raw enum error string).
 - **FR-013**: Any raw backend category enum validation error MUST be intercepted and replaced with the friendly message "Please select a category before submitting." before display.
-- **FR-014**: The "Privacy Policy" link on the register page MUST be replaced with an element that opens a modal dialog titled "Privacy Policy" with a placeholder body and a "Close" button only.
+- **FR-014**: The "Privacy Policy" link on the register page MUST be replaced with an element that opens a modal dialog titled "Privacy Policy" with the body text "Our privacy policy will be published here. Please contact your EPAM administrator for details." and a "Close" button only.
 - **FR-015**: The Privacy Policy modal MUST be dismissible via the "Close" button or the Escape key.
 - **FR-016**: The idea-detail/evaluation page MUST render its stage content area with a fade-in and slide-up entrance animation of 200–300ms duration on every page mount, regardless of navigation origin.
 - **FR-017**: Status badge color changes on the evaluation page MUST animate with a smooth transition of ≤150ms rather than flickering.
@@ -194,7 +194,7 @@ All pages are audited for visual consistency against the design system: padding,
 ## Assumptions
 
 - The canonical Stage enum in `frontend/src/types/ideas.ts` is the single source of truth for all stage-based UI (home page cards, filter cards, and table values); no new stages will be added during this feature's implementation.
-- The existing shadcn/ui Dialog and AlertDialog components are installed and available; no new packages need to be added.
+- `@radix-ui/react-dialog` will be added as the single new dependency for this feature; it is the standard Radix primitive underlying shadcn/ui Dialog components, consistent with the five existing Radix packages already installed. All other shadcn/ui and form components are already available.
 - All filtering is performed client-side or via existing URL query parameters; no new backend API endpoints are required.
 - The "Reduce Motion" implementation uses the CSS `prefers-reduced-motion: reduce` media query, respected without JavaScript detection.
 - The design system tokens referenced are defined in `design-system/innovatepam/MASTER.md`; this file exists and is up to date before implementation begins.
