@@ -850,3 +850,83 @@ async def test_IR09_other_admin_sees_full_stage_reviews_readonly(async_client, t
     # Admin2 cannot advance (not assigned)
     advance_resp = await admin2_client.post(f"/api/v1/ideas/{idea_id}/reviews", json={})
     assert advance_resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# T005 — Multi-stage filter integration tests
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_list_ideas_multi_stage_filter(async_client, test_db):
+    """T005: GET /api/v1/ideas?stage=new_idea&stage=technical_review returns only ideas in those stages."""
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+
+    # Create ideas as submitter first, then switch to admin (shared client cookie)
+    sub_client = await authenticated_client(async_client, test_db, submitter)
+    r1 = await sub_client.post("/api/v1/ideas", data={"title": "Idea New", "description": "d", "category": "other"})
+    r2 = await sub_client.post("/api/v1/ideas", data={"title": "Idea Screening", "description": "d", "category": "other"})
+    r3 = await sub_client.post("/api/v1/ideas", data={"title": "Idea Tech", "description": "d", "category": "other"})
+    assert r1.status_code == 201
+    assert r2.status_code == 201
+    assert r3.status_code == 201
+
+    id_new = r1.json()["id"]
+    id_screening = r2.json()["id"]
+    id_tech = r3.json()["id"]
+
+    admin_client = await authenticated_client(async_client, test_db, admin)
+    # Advance screening idea to initial_screening
+    await admin_client.post(f"/api/v1/ideas/{id_screening}/reviews", json={})
+    # Advance tech idea to technical_review
+    await admin_client.post(f"/api/v1/ideas/{id_tech}/reviews", json={})
+    await admin_client.post(f"/api/v1/ideas/{id_tech}/reviews", json={})
+
+    # Multi-stage filter: new_idea + technical_review
+    resp = await admin_client.get("/api/v1/ideas?stage=new_idea&stage=technical_review")
+    assert resp.status_code == 200
+    body = resp.json()
+    returned_ids = {idea["id"] for idea in body["ideas"]}
+    assert id_new in returned_ids
+    assert id_tech in returned_ids
+    assert id_screening not in returned_ids
+
+
+@pytest.mark.asyncio
+async def test_list_ideas_single_stage_backwards_compat(async_client, test_db):
+    """T005: Single-stage call still passes (backwards compat)."""
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+
+    sub_client = await authenticated_client(async_client, test_db, submitter)
+    r1 = await sub_client.post("/api/v1/ideas", data={"title": "Only New", "description": "d", "category": "other"})
+    r2 = await sub_client.post("/api/v1/ideas", data={"title": "Screening", "description": "d", "category": "other"})
+    assert r1.status_code == 201
+    assert r2.status_code == 201
+    id_screening = r2.json()["id"]
+
+    admin_client = await authenticated_client(async_client, test_db, admin)
+    await admin_client.post(f"/api/v1/ideas/{id_screening}/reviews", json={})
+
+    resp = await admin_client.get("/api/v1/ideas?stage=new_idea")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["ideas"][0]["id"] == r1.json()["id"]
+
+
+@pytest.mark.asyncio
+async def test_list_ideas_no_stage_returns_all(async_client, test_db):
+    """T005: No stage param returns all ideas."""
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+
+    sub_client = await authenticated_client(async_client, test_db, submitter)
+    for i in range(3):
+        await sub_client.post("/api/v1/ideas", data={"title": f"Idea {i}", "description": "d", "category": "other"})
+
+    admin_client = await authenticated_client(async_client, test_db, admin)
+    resp = await admin_client.get("/api/v1/ideas")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 3

@@ -28,7 +28,7 @@ function resolveClasses(stage: Stage, outcome?: Outcome | null): string {
 export function StageBadge({ stage, outcome }: StageBadgeProps) {
   const classes = resolveClasses(stage, outcome)
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${classes}`}>
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium transition-colors duration-150 ${classes}`}>
       {STAGE_LABEL[stage]}
     </span>
   )

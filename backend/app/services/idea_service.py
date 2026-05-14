@@ -4,7 +4,7 @@ import json
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import anyio
 from fastapi import HTTPException, UploadFile
@@ -328,7 +328,7 @@ async def list_ideas(
     page: int = 1,
     limit: int = 20,
     submitter_id_filter: Optional[str] = None,
-    stage_filter: Optional[Stage] = None,
+    stage_filter: Optional[List[Stage]] = None,
 ) -> IdeaListResponse:
     offset = (page - 1) * limit
 
@@ -342,9 +342,9 @@ async def list_ideas(
         base_count_q = base_count_q.where(Idea.submitter_id == submitter_id_filter)
         base_list_q = base_list_q.where(Idea.submitter_id == submitter_id_filter)
 
-    if stage_filter is not None:
-        base_count_q = base_count_q.where(Idea.current_stage == stage_filter)
-        base_list_q = base_list_q.where(Idea.current_stage == stage_filter)
+    if stage_filter is not None and len(stage_filter) > 0:
+        base_count_q = base_count_q.where(Idea.current_stage.in_(stage_filter))
+        base_list_q = base_list_q.where(Idea.current_stage.in_(stage_filter))
 
     total_result = await db.execute(base_count_q)
     total = total_result.scalar_one()

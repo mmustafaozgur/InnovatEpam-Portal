@@ -68,14 +68,17 @@ describe('StageAdvanceForm', () => {
     expect(screen.getByRole('button', { name: /advance|submit/i })).toBeInTheDocument()
   })
 
-  it('calls advanceStage with ideaId, comment, and no outcome for non-final stage', async () => {
+  it('calls advanceStage with ideaId, comment, and no outcome for non-final stage (with dialog confirm)', async () => {
     const onSuccess = vi.fn()
     const updatedIdea = { ...mockIdea, current_stage: 'technical_review' as const }
     vi.mocked(advanceStage).mockResolvedValueOnce(updatedIdea)
 
     render(<StageAdvanceForm ideaId="idea-1" nextStage="technical_review" onSuccess={onSuccess} />)
     await userEvent.type(screen.getByRole('textbox'), 'Looks good')
-    await userEvent.click(screen.getByRole('button', { name: /advance|submit/i }))
+    await userEvent.click(screen.getByRole('button', { name: /advance stage/i }))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /confirm/i })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /confirm/i }))
 
     await waitFor(() => {
       expect(advanceStage).toHaveBeenCalledWith('idea-1', { comment: 'Looks good' })
@@ -83,17 +86,77 @@ describe('StageAdvanceForm', () => {
     expect(onSuccess).toHaveBeenCalledWith(updatedIdea)
   })
 
-  it('calls advanceStage with outcome when advancing to final_selection', async () => {
+  it('calls advanceStage with outcome when advancing to final_selection (with dialog confirm)', async () => {
     const onSuccess = vi.fn()
     const updatedIdea = { ...mockIdea, current_stage: 'final_selection' as const }
     vi.mocked(advanceStage).mockResolvedValueOnce(updatedIdea)
 
     render(<StageAdvanceForm ideaId="idea-1" nextStage="final_selection" onSuccess={onSuccess} />)
     await userEvent.click(screen.getByRole('radio', { name: /accept/i }))
-    await userEvent.click(screen.getByRole('button', { name: /advance|submit/i }))
+    await userEvent.click(screen.getByRole('button', { name: /advance stage/i }))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /confirm/i })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /confirm/i }))
 
     await waitFor(() => {
       expect(advanceStage).toHaveBeenCalledWith('idea-1', expect.objectContaining({ outcome: 'accepted' }))
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// T019 — StageAdvanceForm: ConfirmationDialog before stage advance
+// ---------------------------------------------------------------------------
+
+describe('StageAdvanceForm — ConfirmationDialog (T019)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('clicking "Advance Stage" opens ConfirmationDialog with correct text', async () => {
+    render(<StageAdvanceForm ideaId="idea-1" nextStage="technical_review" onSuccess={vi.fn()} />)
+    await userEvent.click(screen.getByRole('button', { name: /advance stage/i }))
+    await waitFor(() => {
+      expect(screen.getByText(/Are you sure you want to advance this idea to the next stage\?/i)).toBeInTheDocument()
+      expect(screen.getByText(/This action cannot be undone/i)).toBeInTheDocument()
+    })
+  })
+
+  it('clicking Cancel aborts — advanceStage not called', async () => {
+    render(<StageAdvanceForm ideaId="idea-1" nextStage="technical_review" onSuccess={vi.fn()} />)
+    await userEvent.click(screen.getByRole('button', { name: /advance stage/i }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    expect(advanceStage).not.toHaveBeenCalled()
+  })
+
+  it('clicking Confirm fires advanceStage', async () => {
+    const onSuccess = vi.fn()
+    const updatedIdea = { ...mockIdea, current_stage: 'technical_review' as const }
+    vi.mocked(advanceStage).mockResolvedValueOnce(updatedIdea)
+
+    render(<StageAdvanceForm ideaId="idea-1" nextStage="technical_review" onSuccess={onSuccess} />)
+    await userEvent.click(screen.getByRole('button', { name: /advance stage/i }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /confirm/i })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /confirm/i }))
+
+    await waitFor(() => {
+      expect(advanceStage).toHaveBeenCalledOnce()
+      expect(onSuccess).toHaveBeenCalledWith(updatedIdea)
+    })
+  })
+
+  it('API error closes dialog and shows inline error near Advance Stage button', async () => {
+    vi.mocked(advanceStage).mockRejectedValueOnce(new Error('Stage advance failed'))
+
+    render(<StageAdvanceForm ideaId="idea-1" nextStage="technical_review" onSuccess={vi.fn()} />)
+    await userEvent.click(screen.getByRole('button', { name: /advance stage/i }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /confirm/i })).toBeInTheDocument())
+    await userEvent.click(screen.getByRole('button', { name: /confirm/i }))
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Are you sure you want to advance/i)).not.toBeInTheDocument()
+      expect(screen.getByText(/stage advance failed/i)).toBeInTheDocument()
     })
   })
 })

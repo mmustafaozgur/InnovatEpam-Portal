@@ -48,10 +48,10 @@ export async function submitIdea(data: FormData): Promise<IdeaDetailResponse> {
   return handleResponse<IdeaDetailResponse>(res)
 }
 
-export async function listIdeas(page = 1, limit = 20, mine = false, stage?: Stage): Promise<IdeaListResponse> {
+export async function listIdeas(page = 1, limit = 20, mine = false, stages?: Stage[]): Promise<IdeaListResponse> {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) })
   if (mine) params.set('mine', 'true')
-  if (stage) params.set('stage', stage)
+  stages?.forEach(s => params.append('stage', s))
   const res = await fetch(`/api/v1/ideas?${params}`, { credentials: 'include' })
   return handleResponse<IdeaListResponse>(res)
 }

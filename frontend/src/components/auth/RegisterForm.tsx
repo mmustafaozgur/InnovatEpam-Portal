@@ -16,6 +16,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
+import { PrivacyPolicyModal } from '@/components/auth/PrivacyPolicyModal'
 import { register as registerApi } from '@/api/auth'
 
 const schema = z.object({
@@ -34,6 +35,7 @@ export default function RegisterForm() {
 
   const [showPassword, setShowPassword] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [privacyOpen, setPrivacyOpen] = useState(false)
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -141,7 +143,16 @@ export default function RegisterForm() {
                 />
               </FormControl>
               <div className="space-y-1 leading-none">
-                <FormLabel>I accept the Privacy Policy</FormLabel>
+                <FormLabel>
+                  I accept the{' '}
+                  <button
+                    type="button"
+                    className="text-primary underline underline-offset-2 hover:text-primary/80 cursor-pointer focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none"
+                    onClick={() => setPrivacyOpen(true)}
+                  >
+                    Privacy Policy
+                  </button>
+                </FormLabel>
                 <FormMessage role="alert" />
               </div>
             </FormItem>
@@ -152,6 +163,8 @@ export default function RegisterForm() {
           {form.formState.isSubmitting ? 'Registering…' : 'Register'}
         </Button>
       </form>
+
+      <PrivacyPolicyModal open={privacyOpen} onClose={() => setPrivacyOpen(false)} />
     </Form>
   )
 }
