@@ -78,135 +78,249 @@ async def test_submit_idea_with_pdf_201(async_client, test_db, tmp_path, monkeyp
     user = await create_test_user(test_db, role="submitter")
     client = await authenticated_client(async_client, test_db, user)
     pdf_bytes = b"%PDF-1.4 fake"
-    files = {"file": ("test.pdf", io.BytesIO(pdf_bytes), "application/pdf")}
+    files = [("files", ("test.pdf", io.BytesIO(pdf_bytes), "application/pdf"))]
     data = {"title": "Idea with file", "description": "desc", "category": "other"}
     resp = await client.post("/api/v1/ideas", data=data, files=files)
     assert resp.status_code == 201
     body = resp.json()
-    assert body["file"] is not None
-    assert body["file"]["name"] == "test.pdf"
+    assert len(body["attachments"]) == 1
+    assert body["attachments"][0]["name"] == "test.pdf"
+    assert body["attachments"][0]["mime_type"] == "application/pdf"
+    assert body["attachments"][0]["is_image"] is False
 
 
 @pytest.mark.asyncio
 async def test_submit_idea_wrong_mime_400(async_client, test_db):
     user = await create_test_user(test_db, role="submitter")
     client = await authenticated_client(async_client, test_db, user)
-    files = {"file": ("bad.txt", io.BytesIO(b"text"), "text/plain")}
+    files = [("files", ("bad.txt", io.BytesIO(b"text"), "text/plain"))]
     data = {"title": "Idea", "description": "desc", "category": "other"}
     resp = await client.post("/api/v1/ideas", data=data, files=files)
     assert resp.status_code == 400
 
 
 @pytest.mark.asyncio
-async def test_submit_idea_oversized_file_400(async_client, test_db):
+async def test_submit_idea_total_size_exceeded_400(async_client, test_db):
     user = await create_test_user(test_db, role="submitter")
     client = await authenticated_client(async_client, test_db, user)
-    big_data = b"x" * (11 * 1024 * 1024)
-    files = {"file": ("big.pdf", io.BytesIO(big_data), "application/pdf")}
+    # 3 files × 20 MB = 60 MB total (> 50 MB limit)
+    big_data = b"x" * (20 * 1024 * 1024)
+    files = [
+        ("files", (f"big{i}.pdf", io.BytesIO(big_data), "application/pdf"))
+        for i in range(3)
+    ]
     data = {"title": "Idea", "description": "desc", "category": "other"}
     resp = await client.post("/api/v1/ideas", data=data, files=files)
     assert resp.status_code == 400
 
 
 @pytest.mark.asyncio
-async def test_submit_idea_no_file_null_in_response(async_client, test_db):
+async def test_submit_idea_no_file_empty_attachments_in_response(async_client, test_db):
     user = await create_test_user(test_db, role="submitter")
     client = await authenticated_client(async_client, test_db, user)
     data = {"title": "No File Idea", "description": "desc", "category": "other"}
     resp = await client.post("/api/v1/ideas", data=data)
     assert resp.status_code == 201
-    assert resp.json()["file"] is None
+    assert resp.json()["attachments"] == []
 
 
 # ---------------------------------------------------------------------------
-# GET /api/v1/ideas/{id}/attachment
+# T009 — Retired endpoint returns 404
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_download_attachment_submitter_200(async_client, test_db, tmp_path, monkeypatch):
-    import app.core.config as cfg_module
-    monkeypatch.setattr(cfg_module.settings, "UPLOAD_DIR", str(tmp_path))
-
+async def test_retired_single_attachment_endpoint_returns_404(async_client, test_db):
+    """GET /ideas/{id}/attachment (retired) must return 404."""
     user = await create_test_user(test_db, role="submitter")
     client = await authenticated_client(async_client, test_db, user)
-    pdf_bytes = b"%PDF-1.4 fake"
-    files = {"file": ("test.pdf", io.BytesIO(pdf_bytes), "application/pdf")}
-    data = {"title": "Idea", "description": "desc", "category": "other"}
-    create_resp = await client.post("/api/v1/ideas", data=data, files=files)
-    assert create_resp.status_code == 201
-    idea_id = create_resp.json()["id"]
+    resp = await client.get("/api/v1/ideas/some-id/attachment")
+    assert resp.status_code == 404
 
-    dl_resp = await client.get(f"/api/v1/ideas/{idea_id}/attachment")
-    assert dl_resp.status_code == 200
 
+# ---------------------------------------------------------------------------
+# T009 — GET /api/v1/ideas/{id}/attachments/{attachment_id}
+# ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_download_attachment_evaluator_200(async_client, test_db, tmp_path, monkeypatch):
+async def test_download_attachment_image_accessible_to_any_authed_user(async_client, test_db, tmp_path, monkeypatch):
+    """Image attachments: any authenticated user can access inline."""
     import app.core.config as cfg_module
     monkeypatch.setattr(cfg_module.settings, "UPLOAD_DIR", str(tmp_path))
 
     submitter = await create_test_user(test_db, role="submitter")
-    evaluator = await create_test_user(test_db, role="admin")
+    other_user = await create_test_user(test_db, role="submitter")
 
     sub_client = await authenticated_client(async_client, test_db, submitter)
-    pdf_bytes = b"%PDF-1.4 fake"
-    files = {"file": ("test.pdf", io.BytesIO(pdf_bytes), "application/pdf")}
-    data = {"title": "Idea", "description": "desc", "category": "other"}
+    png_bytes = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
+    files = [("files", ("photo.png", io.BytesIO(png_bytes), "image/png"))]
+    data = {"title": "Idea with image", "description": "desc", "category": "other"}
     create_resp = await sub_client.post("/api/v1/ideas", data=data, files=files)
     assert create_resp.status_code == 201
-    idea_id = create_resp.json()["id"]
+    body = create_resp.json()
+    idea_id = body["id"]
+    attachment_id = body["attachments"][0]["id"]
 
-    eval_client = await authenticated_client(async_client, test_db, evaluator)
-    dl_resp = await eval_client.get(f"/api/v1/ideas/{idea_id}/attachment")
+    other_client = await authenticated_client(async_client, test_db, other_user)
+    dl_resp = await other_client.get(f"/api/v1/ideas/{idea_id}/attachments/{attachment_id}")
     assert dl_resp.status_code == 200
 
 
 @pytest.mark.asyncio
-async def test_download_attachment_other_submitter_403(async_client, test_db, tmp_path, monkeypatch):
+async def test_download_non_image_attachment_non_owner_403(async_client, test_db, tmp_path, monkeypatch):
+    """Non-image attachment: non-owner non-admin gets 403."""
     import app.core.config as cfg_module
     monkeypatch.setattr(cfg_module.settings, "UPLOAD_DIR", str(tmp_path))
 
-    submitter_a = await create_test_user(test_db, role="submitter")
-    submitter_b = await create_test_user(test_db, role="submitter")
+    submitter = await create_test_user(test_db, role="submitter")
+    other_user = await create_test_user(test_db, role="submitter")
 
-    client_a = await authenticated_client(async_client, test_db, submitter_a)
+    sub_client = await authenticated_client(async_client, test_db, submitter)
     pdf_bytes = b"%PDF-1.4 fake"
-    files = {"file": ("test.pdf", io.BytesIO(pdf_bytes), "application/pdf")}
-    data = {"title": "A's idea", "description": "desc", "category": "other"}
-    create_resp = await client_a.post("/api/v1/ideas", data=data, files=files)
+    files = [("files", ("doc.pdf", io.BytesIO(pdf_bytes), "application/pdf"))]
+    data = {"title": "Idea with PDF", "description": "desc", "category": "other"}
+    create_resp = await sub_client.post("/api/v1/ideas", data=data, files=files)
     assert create_resp.status_code == 201
-    idea_id = create_resp.json()["id"]
+    body = create_resp.json()
+    idea_id = body["id"]
+    attachment_id = body["attachments"][0]["id"]
 
-    client_b = await authenticated_client(async_client, test_db, submitter_b)
-    dl_resp = await client_b.get(f"/api/v1/ideas/{idea_id}/attachment")
+    other_client = await authenticated_client(async_client, test_db, other_user)
+    dl_resp = await other_client.get(f"/api/v1/ideas/{idea_id}/attachments/{attachment_id}")
     assert dl_resp.status_code == 403
 
 
 @pytest.mark.asyncio
-async def test_download_attachment_no_file_404(async_client, test_db):
-    user = await create_test_user(test_db, role="submitter")
-    client = await authenticated_client(async_client, test_db, user)
-    data = {"title": "No File", "description": "desc", "category": "other"}
-    create_resp = await client.post("/api/v1/ideas", data=data)
-    assert create_resp.status_code == 201
-    idea_id = create_resp.json()["id"]
+async def test_download_non_image_attachment_submitter_200(async_client, test_db, tmp_path, monkeypatch):
+    """Non-image attachment: submitter (owner) can download."""
+    import app.core.config as cfg_module
+    monkeypatch.setattr(cfg_module.settings, "UPLOAD_DIR", str(tmp_path))
 
-    dl_resp = await client.get(f"/api/v1/ideas/{idea_id}/attachment")
-    assert dl_resp.status_code == 404
+    submitter = await create_test_user(test_db, role="submitter")
+    sub_client = await authenticated_client(async_client, test_db, submitter)
+    pdf_bytes = b"%PDF-1.4 fake"
+    files = [("files", ("doc.pdf", io.BytesIO(pdf_bytes), "application/pdf"))]
+    data = {"title": "Idea with PDF", "description": "desc", "category": "other"}
+    create_resp = await sub_client.post("/api/v1/ideas", data=data, files=files)
+    assert create_resp.status_code == 201
+    body = create_resp.json()
+    idea_id = body["id"]
+    attachment_id = body["attachments"][0]["id"]
+
+    dl_resp = await sub_client.get(f"/api/v1/ideas/{idea_id}/attachments/{attachment_id}")
+    assert dl_resp.status_code == 200
 
 
 @pytest.mark.asyncio
-async def test_download_attachment_unknown_idea_404(async_client, test_db):
-    user = await create_test_user(test_db, role="submitter")
-    client = await authenticated_client(async_client, test_db, user)
-    resp = await client.get("/api/v1/ideas/nonexistent-id/attachment")
-    assert resp.status_code == 404
+async def test_download_non_image_attachment_admin_200(async_client, test_db, tmp_path, monkeypatch):
+    """Non-image attachment: admin can download."""
+    import app.core.config as cfg_module
+    monkeypatch.setattr(cfg_module.settings, "UPLOAD_DIR", str(tmp_path))
+
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+
+    sub_client = await authenticated_client(async_client, test_db, submitter)
+    pdf_bytes = b"%PDF-1.4 fake"
+    files = [("files", ("doc.pdf", io.BytesIO(pdf_bytes), "application/pdf"))]
+    data = {"title": "Idea", "description": "desc", "category": "other"}
+    create_resp = await sub_client.post("/api/v1/ideas", data=data, files=files)
+    assert create_resp.status_code == 201
+    body = create_resp.json()
+    idea_id = body["id"]
+    attachment_id = body["attachments"][0]["id"]
+
+    admin_client = await authenticated_client(async_client, test_db, admin)
+    dl_resp = await admin_client.get(f"/api/v1/ideas/{idea_id}/attachments/{attachment_id}")
+    assert dl_resp.status_code == 200
 
 
 @pytest.mark.asyncio
 async def test_download_attachment_unauthenticated_401(async_client, test_db):
-    resp = await async_client.get("/api/v1/ideas/some-id/attachment")
+    resp = await async_client.get("/api/v1/ideas/some-id/attachments/some-attachment-id")
     assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_download_attachment_unknown_attachment_404(async_client, test_db):
+    user = await create_test_user(test_db, role="submitter")
+    client = await authenticated_client(async_client, test_db, user)
+    data = {"title": "No File", "description": "desc", "category": "other"}
+    create_resp = await client.post("/api/v1/ideas", data=data)
+    idea_id = create_resp.json()["id"]
+    resp = await client.get(f"/api/v1/ideas/{idea_id}/attachments/nonexistent-attachment-id")
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# T009 — Multi-file upload: 2 files, verify response
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_submit_idea_multi_file_two_files_201(async_client, test_db, tmp_path, monkeypatch):
+    """Multi-file upload: 2 files → 2 attachment records."""
+    import app.core.config as cfg_module
+    monkeypatch.setattr(cfg_module.settings, "UPLOAD_DIR", str(tmp_path))
+
+    user = await create_test_user(test_db, role="submitter")
+    client = await authenticated_client(async_client, test_db, user)
+    files = [
+        ("files", ("doc.pdf", io.BytesIO(b"%PDF-1.4"), "application/pdf")),
+        ("files", ("photo.png", io.BytesIO(b"\x89PNG\r\n\x1a\n" + b"\x00" * 50), "image/png")),
+    ]
+    data = {"title": "Multi File Idea", "description": "desc", "category": "other"}
+    resp = await client.post("/api/v1/ideas", data=data, files=files)
+    assert resp.status_code == 201
+    body = resp.json()
+    assert len(body["attachments"]) == 2
+    names = {a["name"] for a in body["attachments"]}
+    assert names == {"doc.pdf", "photo.png"}
+    pdf_att = next(a for a in body["attachments"] if a["name"] == "doc.pdf")
+    png_att = next(a for a in body["attachments"] if a["name"] == "photo.png")
+    assert pdf_att["is_image"] is False
+    assert png_att["is_image"] is True
+
+
+@pytest.mark.asyncio
+async def test_submit_idea_six_files_400(async_client, test_db):
+    """6 files → 400 (exceeds max 5 files)."""
+    user = await create_test_user(test_db, role="submitter")
+    client = await authenticated_client(async_client, test_db, user)
+    files = [
+        ("files", (f"doc{i}.pdf", io.BytesIO(b"%PDF"), "application/pdf"))
+        for i in range(6)
+    ]
+    data = {"title": "Idea", "description": "desc", "category": "other"}
+    resp = await client.post("/api/v1/ideas", data=data, files=files)
+    assert resp.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# T009 — attachment_count in list response (replaces has_attachment)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_list_ideas_attachment_count_not_has_attachment(async_client, test_db, tmp_path, monkeypatch):
+    """List response uses attachment_count (int), not has_attachment (bool)."""
+    import app.core.config as cfg_module
+    monkeypatch.setattr(cfg_module.settings, "UPLOAD_DIR", str(tmp_path))
+
+    user = await create_test_user(test_db, role="submitter")
+    client = await authenticated_client(async_client, test_db, user)
+    files = [("files", ("doc.pdf", io.BytesIO(b"%PDF"), "application/pdf"))]
+    data = {"title": "With Attachment", "description": "desc", "category": "other"}
+    await client.post("/api/v1/ideas", data=data, files=files)
+    await client.post("/api/v1/ideas", data={"title": "No Attach", "description": "d", "category": "other"})
+
+    resp = await client.get("/api/v1/ideas")
+    assert resp.status_code == 200
+    ideas = resp.json()["ideas"]
+    for idea in ideas:
+        assert "attachment_count" in idea
+        assert "has_attachment" not in idea
+    with_attach = next(i for i in ideas if i["title"] == "With Attachment")
+    no_attach = next(i for i in ideas if i["title"] == "No Attach")
+    assert with_attach["attachment_count"] == 1
+    assert no_attach["attachment_count"] == 0
 
 
 # ---------------------------------------------------------------------------
@@ -259,7 +373,7 @@ async def test_get_idea_detail_200(async_client, test_db):
     assert resp.status_code == 200
     body = resp.json()
     assert body["title"] == "Detail Test"
-    assert body["file"] is None
+    assert body["attachments"] == []
     assert body["evaluation"]["status"] == "submitted"
 
 
@@ -270,14 +384,14 @@ async def test_get_idea_detail_with_file(async_client, test_db, tmp_path, monkey
 
     user = await create_test_user(test_db, role="submitter")
     client = await authenticated_client(async_client, test_db, user)
-    files = {"file": ("a.pdf", io.BytesIO(b"%PDF"), "application/pdf")}
+    files = [("files", ("a.pdf", io.BytesIO(b"%PDF"), "application/pdf"))]
     data = {"title": "With File", "description": "desc", "category": "other"}
     create_resp = await client.post("/api/v1/ideas", data=data, files=files)
     idea_id = create_resp.json()["id"]
 
     resp = await client.get(f"/api/v1/ideas/{idea_id}")
     assert resp.status_code == 200
-    assert resp.json()["file"] is not None
+    assert len(resp.json()["attachments"]) == 1
 
 
 @pytest.mark.asyncio

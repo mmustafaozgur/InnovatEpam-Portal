@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi, beforeEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
@@ -80,7 +80,7 @@ describe('SubmitIdeaPage', () => {
       submitter_id: 'u1',
       submitter_name: 'Test User',
       submitted_at: '2026-05-13T10:00:00Z',
-      file: null,
+      attachments: [],
       evaluation: { status: 'submitted', comment: null, evaluated_at: null, assigned_admin_id: null, assigned_admin_name: null },
       extra_data: null,
     }
@@ -100,5 +100,71 @@ describe('SubmitIdeaPage', () => {
       expect(submitIdea).toHaveBeenCalled()
       expect(mockNavigate).toHaveBeenCalledWith('/ideas/idea-123')
     })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// T021 — multi-file FormData tests
+// ---------------------------------------------------------------------------
+
+describe('SubmitIdeaPage — multi-file attachment', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('appends attached files under the "files" key in FormData', async () => {
+    let capturedFd: FormData | null = null
+    const mockIdea = {
+      id: 'idea-123', title: 'T', description: 'D', category: 'other',
+      submitter_id: 'u1', submitter_name: 'Test User',
+      submitted_at: '2026-05-13T10:00:00Z', attachments: [],
+      evaluation: { status: 'submitted', comment: null, evaluated_at: null, assigned_admin_id: null, assigned_admin_name: null },
+      extra_data: null,
+    }
+    ;(submitIdea as ReturnType<typeof vi.fn>).mockImplementation((fd: FormData) => {
+      capturedFd = fd
+      return Promise.resolve(mockIdea)
+    })
+
+    renderWithAuth('submitter')
+
+    await userEvent.type(screen.getByLabelText(/title/i), 'T')
+    await userEvent.type(screen.getByLabelText(/description/i), 'D')
+    await userEvent.selectOptions(screen.getByLabelText('Category'), 'other')
+
+    // Simulate file attach via the hidden file input
+    const fileInput = screen.getByLabelText(/attach files/i)
+    const pdf = new File(['data'], 'report.pdf', { type: 'application/pdf' })
+    fireEvent.change(fileInput, { target: { files: [pdf] } })
+
+    await userEvent.click(screen.getByRole('button', { name: /submit/i }))
+
+    await waitFor(() => {
+      expect(capturedFd).not.toBeNull()
+      const filesInFd = (capturedFd as unknown as FormData).getAll('files')
+      expect(filesInFd).toHaveLength(1)
+      expect((filesInFd[0] as File).name).toBe('report.pdf')
+    })
+  })
+
+  it('submit button is disabled while submission is in progress', async () => {
+    let resolve!: (v: unknown) => void
+    ;(submitIdea as ReturnType<typeof vi.fn>).mockReturnValueOnce(new Promise(r => { resolve = r }))
+
+    renderWithAuth('submitter')
+
+    await userEvent.type(screen.getByLabelText(/title/i), 'T')
+    await userEvent.type(screen.getByLabelText(/description/i), 'D')
+    await userEvent.selectOptions(screen.getByLabelText('Category'), 'other')
+
+    const submitBtn = screen.getByRole('button', { name: /submit/i })
+    await userEvent.click(submitBtn)
+
+    await waitFor(() => expect(submitBtn).toBeDisabled())
+
+    resolve({ id: 'x', title: 'T', description: 'D', category: 'other', submitter_id: 'u1',
+      submitter_name: 'Test', submitted_at: '', attachments: [],
+      evaluation: { status: 'submitted', comment: null, evaluated_at: null, assigned_admin_id: null, assigned_admin_name: null },
+      extra_data: null })
   })
 })

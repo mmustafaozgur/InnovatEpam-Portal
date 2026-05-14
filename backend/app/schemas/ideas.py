@@ -9,10 +9,12 @@ IdeaCategory = Literal[
 EvaluationStatus = Literal["submitted", "under_review", "accepted", "rejected"]
 
 
-class FileInfo(BaseModel):
+class AttachmentInfo(BaseModel):
+    id: str
     name: str
     size: int
     mime_type: str
+    is_image: bool
 
 
 class EvaluationInfo(BaseModel):
@@ -36,7 +38,7 @@ class IdeaDetailResponse(BaseModel):
     submitter_id: str
     submitter_name: str
     submitted_at: str
-    file: Optional[FileInfo] = None
+    attachments: list[AttachmentInfo] = []
     evaluation: EvaluationInfo
     extra_data: Optional[dict[str, Any]] = None
 
@@ -47,7 +49,7 @@ class IdeaSummaryResponse(BaseModel):
     category: str
     submitter_name: str
     submitted_at: str
-    has_attachment: bool
+    attachment_count: int
     evaluation_status: EvaluationStatus
     reviewer_name: Optional[str] = None
     extra_data: Optional[dict[str, Any]] = None

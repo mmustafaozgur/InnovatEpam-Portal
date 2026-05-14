@@ -101,7 +101,7 @@ type FormValues = z.infer<typeof schema>
 export default function SubmitIdeaPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
-  const [attachedFile, setAttachedFile] = useState<File | null>(null)
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([])
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -127,7 +127,7 @@ export default function SubmitIdeaPage() {
     fd.append('title', values.title)
     fd.append('description', values.description)
     fd.append('category', values.category)
-    if (attachedFile) fd.append('file', attachedFile)
+    attachedFiles.forEach(f => fd.append('files', f))
 
     // Append each extra field key so the API function can collect them
     for (const key of ALL_EXTRA_FIELD_KEYS) {
@@ -234,7 +234,7 @@ export default function SubmitIdeaPage() {
                 <ExtraFieldsSection category={watchedCategory} control={form.control} />
               )}
 
-              <FileUploadControl onChange={setAttachedFile} />
+              <FileUploadControl onFilesChange={setAttachedFiles} />
 
               <Button
                 type="submit"
