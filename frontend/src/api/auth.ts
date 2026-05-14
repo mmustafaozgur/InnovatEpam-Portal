@@ -66,3 +66,46 @@ export async function promoteUser(userId: string): Promise<User> {
   })
   return handleResponse<User>(res)
 }
+
+interface ResetPasswordRequest {
+  email: string
+  new_password: string
+}
+
+export async function resetPassword(data: ResetPasswordRequest): Promise<{ message: string }> {
+  const res = await fetch('/api/v1/auth/reset-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  return handleResponse<{ message: string }>(res)
+}
+
+interface UpdateProfileRequest {
+  full_name: string
+}
+
+export async function updateProfile(data: UpdateProfileRequest): Promise<User> {
+  const res = await fetch('/api/v1/users/me', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(data),
+  })
+  return handleResponse<User>(res)
+}
+
+interface ChangePasswordRequest {
+  current_password: string
+  new_password: string
+}
+
+export async function changePassword(data: ChangePasswordRequest): Promise<{ message: string }> {
+  const res = await fetch('/api/v1/users/me/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(data),
+  })
+  return handleResponse<{ message: string }>(res)
+}

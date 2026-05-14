@@ -9,6 +9,7 @@ const UsersPage = React.lazy(() => import('@/pages/UsersPage'))
 const SubmitIdeaPage = React.lazy(() => import('@/pages/SubmitIdeaPage'))
 const IdeasPage = React.lazy(() => import('@/pages/IdeasPage'))
 const IdeaDetailPage = React.lazy(() => import('@/pages/IdeaDetailPage'))
+const ProfilePage = React.lazy(() => import('@/pages/ProfilePage'))
 const AppLayout = React.lazy(() => import('@/components/layout/AppLayout'))
 const ProtectedRoute = React.lazy(() =>
   import('@/components/auth/ProtectedRoute').then((m) => ({ default: m.ProtectedRoute }))
@@ -31,6 +32,7 @@ function App() {
                 <Route path="/submit" element={<SubmitIdeaPage />} />
                 <Route path="/ideas" element={<IdeasPage />} />
                 <Route path="/ideas/:id" element={<IdeaDetailPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
               </Route>
             </Route>
             <Route element={<AdminRoute />}>

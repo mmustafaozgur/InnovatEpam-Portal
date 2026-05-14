@@ -6,6 +6,7 @@ interface AuthContextValue {
   isLoading: boolean
   login: (user: User) => void
   logout: () => void
+  updateUser: (user: User) => void
 }
 
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -28,6 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const login = useCallback((u: User) => setUser(u), [])
+  const updateUser = useCallback((u: User) => setUser(u), [])
 
   const logout = useCallback(async () => {
     await fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'include' })
@@ -35,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   )

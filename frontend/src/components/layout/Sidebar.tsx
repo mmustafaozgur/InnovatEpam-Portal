@@ -1,16 +1,17 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Home, Lightbulb, PlusCircle, Users, Menu, X, LogOut } from 'lucide-react'
+import { Home, Lightbulb, PlusCircle, Users, User, Menu, X, LogOut } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
 const NAV_ITEMS = [
-  { to: '/',       label: 'Home',           icon: Home,        roles: ['submitter', 'admin'] },
-  { to: '/ideas',  label: 'Ideas',          icon: Lightbulb,   roles: ['submitter', 'admin'] },
-  { to: '/submit', label: 'Submit an Idea', icon: PlusCircle,  roles: ['submitter'] },
-  { to: '/users',  label: 'Manage Users',   icon: Users,       roles: ['admin'] },
+  { to: '/',        label: 'Home',           icon: Home,        roles: ['submitter', 'admin'] },
+  { to: '/ideas',   label: 'Ideas',          icon: Lightbulb,   roles: ['submitter', 'admin'] },
+  { to: '/submit',  label: 'Submit an Idea', icon: PlusCircle,  roles: ['submitter'] },
+  { to: '/users',   label: 'Manage Users',   icon: Users,       roles: ['admin'] },
+  { to: '/profile', label: 'My Profile',     icon: User,        roles: ['submitter', 'admin'] },
 ]
 
 export default function Sidebar() {

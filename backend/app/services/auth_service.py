@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.core.security import hash_password, verify_password, create_jwt
 from app.models.session import Session
 from app.models.user import User
-from app.schemas.auth import LoginRequest, RegisterRequest
+from app.schemas.auth import LoginRequest, RegisterRequest, ResetPasswordRequest
 
 
 async def register(db: AsyncSession, data: RegisterRequest) -> User:
@@ -78,6 +78,16 @@ async def login(db: AsyncSession, data: LoginRequest) -> tuple[User, Session]:
     await db.commit()
     await db.refresh(session)
     return user, session
+
+
+async def reset_password(db: AsyncSession, data: ResetPasswordRequest) -> None:
+    email = data.email.lower()
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail="No account found with that email address.")
+    user.hashed_password = hash_password(data.new_password)
+    await db.commit()
 
 
 async def logout(db: AsyncSession, token: str) -> None:

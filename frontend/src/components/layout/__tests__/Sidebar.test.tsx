@@ -14,7 +14,7 @@ function renderSidebar({
   const user = { id: 'u1', full_name: 'Alice Smith', email: 'alice@epam.com', role }
   return render(
     <MemoryRouter initialEntries={[initialPath]}>
-      <AuthContext.Provider value={{ user, isLoading: false, login: vi.fn(), logout }}>
+      <AuthContext.Provider value={{ user, isLoading: false, login: vi.fn(), logout, updateUser: vi.fn() }}>
         <Sidebar />
       </AuthContext.Provider>
     </MemoryRouter>
@@ -95,6 +95,20 @@ describe('Sidebar — desktop nav', () => {
     renderSidebar({ logout })
     fireEvent.click(screen.getByRole('button', { name: /sign out/i }))
     expect(logout).toHaveBeenCalledTimes(1)
+  })
+
+  it('submitter sees My Profile link pointing to /profile', () => {
+    renderSidebar({ role: 'submitter' })
+    const link = screen.getByRole('link', { name: 'My Profile' })
+    expect(link).toBeInTheDocument()
+    expect(link).toHaveAttribute('href', '/profile')
+  })
+
+  it('admin sees My Profile link pointing to /profile', () => {
+    renderSidebar({ role: 'admin' })
+    const link = screen.getByRole('link', { name: 'My Profile' })
+    expect(link).toBeInTheDocument()
+    expect(link).toHaveAttribute('href', '/profile')
   })
 })
 

@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/form'
 import { useAuth } from '@/context/AuthContext'
 import { login as loginApi } from '@/api/auth'
+import ForgotPasswordForm from './ForgotPasswordForm'
 
 const schema = z.object({
   email: z.string().email('Enter a valid email address').endsWith('@epam.com', 'Only @epam.com emails are allowed'),
@@ -30,6 +31,8 @@ export default function LoginForm() {
   const { login } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [showForgot, setShowForgot] = useState(false)
+  const [resetSuccess, setResetSuccess] = useState(false)
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -48,6 +51,7 @@ export default function LoginForm() {
   }
 
   return (
+    <>
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
         {formError && (
@@ -107,5 +111,34 @@ export default function LoginForm() {
         </Button>
       </form>
     </Form>
+
+    {resetSuccess && (
+      <div
+        role="status"
+        className="mt-4 rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700"
+      >
+        Password reset successfully. You can now sign in with your new password.
+      </div>
+    )}
+
+    <div className="mt-3 text-center">
+      <button
+        type="button"
+        className="text-sm text-slate-500 hover:text-primary transition-colors duration-200 cursor-pointer"
+        onClick={() => { setShowForgot((v) => !v); setResetSuccess(false) }}
+      >
+        {showForgot ? 'Back to sign in' : 'Forgot password?'}
+      </button>
+    </div>
+
+    {showForgot && (
+      <ForgotPasswordForm
+        onSuccess={() => {
+          setShowForgot(false)
+          setResetSuccess(true)
+        }}
+      />
+    )}
+    </>
   )
 }

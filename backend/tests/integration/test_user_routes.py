@@ -89,3 +89,62 @@ async def test_promote_by_submitter_returns_403(submitter_client, test_engine):
         target = await create_test_user(db, role="submitter", email="target2@epam.com")
     res = await submitter_client.patch(f"{USERS_URL}/{target.id}/promote")
     assert res.status_code == 403
+
+
+ME_URL = "/api/v1/users/me"
+CHANGE_PW_URL = "/api/v1/users/me/change-password"
+
+
+# --- PATCH /users/me tests ---
+
+async def test_patch_me_returns_200_with_updated_name(admin_client):
+    res = await admin_client.patch(ME_URL, json={"full_name": "Updated Name"})
+    assert res.status_code == 200
+    assert res.json()["full_name"] == "Updated Name"
+
+
+async def test_patch_me_returns_401_for_unauthenticated(async_client):
+    async_client.cookies.clear()
+    res = await async_client.patch(ME_URL, json={"full_name": "Test"})
+    assert res.status_code == 401
+
+
+async def test_patch_me_returns_422_for_empty_name(admin_client):
+    res = await admin_client.patch(ME_URL, json={"full_name": "   "})
+    assert res.status_code == 422
+
+
+# --- POST /users/me/change-password tests ---
+
+async def test_change_password_returns_200(admin_client):
+    res = await admin_client.post(
+        CHANGE_PW_URL,
+        json={"current_password": "password123", "new_password": "newpass99"},
+    )
+    assert res.status_code == 200
+    assert res.json()["message"] == "Password changed successfully."
+
+
+async def test_change_password_wrong_current_returns_400(admin_client):
+    res = await admin_client.post(
+        CHANGE_PW_URL,
+        json={"current_password": "wrongpass", "new_password": "newpass99"},
+    )
+    assert res.status_code == 400
+
+
+async def test_change_password_returns_401_for_unauthenticated(async_client):
+    async_client.cookies.clear()
+    res = await async_client.post(
+        CHANGE_PW_URL,
+        json={"current_password": "password123", "new_password": "newpass99"},
+    )
+    assert res.status_code == 401
+
+
+async def test_change_password_short_new_returns_422(admin_client):
+    res = await admin_client.post(
+        CHANGE_PW_URL,
+        json={"current_password": "password123", "new_password": "short"},
+    )
+    assert res.status_code == 422

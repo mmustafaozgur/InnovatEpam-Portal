@@ -5,7 +5,7 @@ from app.api.deps import get_current_user
 from app.core.config import settings
 from app.database import get_db
 from app.models.user import User
-from app.schemas.auth import LoginRequest, RegisterRequest, UserResponse
+from app.schemas.auth import LoginRequest, RegisterRequest, ResetPasswordRequest, UserResponse
 from app.services import auth_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -72,6 +72,15 @@ async def logout(
     await auth_service.logout(db, token)
     _clear_auth_cookie(response)
     return {"message": "Logged out successfully."}
+
+
+@router.post("/reset-password")
+async def reset_password(
+    data: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    await auth_service.reset_password(db, data)
+    return {"message": "Password reset successfully."}
 
 
 @router.get("/me", response_model=UserResponse)
