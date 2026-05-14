@@ -6,7 +6,13 @@ IdeaCategory = Literal[
     "process_improvement", "technology", "cost_saving",
     "talent_development", "client_delivery", "workplace_culture", "other"
 ]
-EvaluationStatus = Literal["submitted", "under_review", "accepted", "rejected"]
+
+Stage = Literal[
+    "new_idea", "initial_screening", "technical_review",
+    "business_impact_assessment", "final_selection"
+]
+
+Outcome = Literal["accepted", "rejected"]
 
 
 class AttachmentInfo(BaseModel):
@@ -17,17 +23,18 @@ class AttachmentInfo(BaseModel):
     is_image: bool
 
 
-class EvaluationInfo(BaseModel):
-    status: EvaluationStatus
+class StageReviewRecord(BaseModel):
+    id: str
+    stage: Stage
+    outcome: Optional[Outcome] = None
     comment: Optional[str] = None
-    evaluated_at: Optional[str] = None
-    assigned_admin_id: Optional[str] = None
-    assigned_admin_name: Optional[str] = None
+    reviewer_name: Optional[str] = None
+    reviewed_at: str
 
 
-class EvaluateIdeaRequest(BaseModel):
-    status: EvaluationStatus
+class AdvanceStageRequest(BaseModel):
     comment: Optional[str] = Field(None, max_length=1000)
+    outcome: Optional[Outcome] = None
 
 
 class IdeaDetailResponse(BaseModel):
@@ -39,7 +46,10 @@ class IdeaDetailResponse(BaseModel):
     submitter_name: str
     submitted_at: str
     attachments: list[AttachmentInfo] = []
-    evaluation: EvaluationInfo
+    current_stage: Stage
+    assigned_admin_id: Optional[str] = None
+    assigned_admin_name: Optional[str] = None
+    stage_reviews: list[StageReviewRecord] = []
     extra_data: Optional[dict[str, Any]] = None
 
 
@@ -50,7 +60,8 @@ class IdeaSummaryResponse(BaseModel):
     submitter_name: str
     submitted_at: str
     attachment_count: int
-    evaluation_status: EvaluationStatus
+    current_stage: Stage
+    outcome: Optional[Outcome] = None
     reviewer_name: Optional[str] = None
     extra_data: Optional[dict[str, Any]] = None
 

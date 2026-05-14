@@ -11,7 +11,7 @@ function makeIdea(overrides: Partial<IdeaSummaryResponse> = {}): IdeaSummaryResp
     submitter_name: 'Alice',
     submitted_at: '2026-05-13T10:00:00Z',
     attachment_count: 0,
-    evaluation_status: 'submitted',
+    current_stage: 'new_idea',
     reviewer_name: null,
     extra_data: null,
     ...overrides,
@@ -39,14 +39,27 @@ describe('IdeasTable', () => {
 
   it('does NOT show attachment badge when attachment_count is 0', () => {
     renderTable([makeIdea({ attachment_count: 0 })])
-    // "0" should not appear as a badge — it would be confusing
     const badges = screen.queryAllByText('0')
     expect(badges).toHaveLength(0)
   })
 
-  it('does not reference has_attachment field in rendered output', () => {
-    renderTable([makeIdea({ attachment_count: 2 })])
-    // has_attachment is the old boolean field — should not appear anywhere
-    expect(screen.queryByText(/has_attachment/i)).not.toBeInTheDocument()
+  it('renders StageBadge with "New Idea" for new_idea stage', () => {
+    renderTable([makeIdea({ current_stage: 'new_idea' })])
+    expect(screen.getByText('New Idea')).toBeInTheDocument()
+  })
+
+  it('renders StageBadge with "Final Selection" for final_selection stage', () => {
+    renderTable([makeIdea({ current_stage: 'final_selection' })])
+    expect(screen.getByText('Final Selection')).toBeInTheDocument()
+  })
+
+  it('renders reviewer name when present', () => {
+    renderTable([makeIdea({ reviewer_name: 'Bob Admin' })])
+    expect(screen.getByText('Bob Admin')).toBeInTheDocument()
+  })
+
+  it('renders "—" when reviewer_name is null', () => {
+    renderTable([makeIdea({ reviewer_name: null })])
+    expect(screen.getByText('—')).toBeInTheDocument()
   })
 })

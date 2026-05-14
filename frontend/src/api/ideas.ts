@@ -1,4 +1,4 @@
-import type { IdeaDetailResponse, IdeaListResponse, EvaluateIdeaRequest, EvaluationStatus } from '@/types/ideas'
+import type { IdeaDetailResponse, IdeaListResponse, AdvanceStageRequest, Stage } from '@/types/ideas'
 import { CATEGORY_FIELD_SCHEMA } from '@/components/ideas/categoryFieldSchema'
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -48,20 +48,20 @@ export async function submitIdea(data: FormData): Promise<IdeaDetailResponse> {
   return handleResponse<IdeaDetailResponse>(res)
 }
 
-export async function listIdeas(page = 1, limit = 20, mine = false, status?: EvaluationStatus): Promise<IdeaListResponse> {
+export async function listIdeas(page = 1, limit = 20, mine = false, stage?: Stage): Promise<IdeaListResponse> {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) })
   if (mine) params.set('mine', 'true')
-  if (status) params.set('status', status)
+  if (stage) params.set('stage', stage)
   const res = await fetch(`/api/v1/ideas?${params}`, { credentials: 'include' })
   return handleResponse<IdeaListResponse>(res)
 }
 
-export async function evaluateIdea(id: string, payload: EvaluateIdeaRequest): Promise<IdeaDetailResponse> {
-  const res = await fetch(`/api/v1/ideas/${id}/evaluate`, {
-    method: 'PATCH',
+export async function advanceStage(id: string, body: AdvanceStageRequest): Promise<IdeaDetailResponse> {
+  const res = await fetch(`/api/v1/ideas/${id}/reviews`, {
+    method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   })
   return handleResponse<IdeaDetailResponse>(res)
 }

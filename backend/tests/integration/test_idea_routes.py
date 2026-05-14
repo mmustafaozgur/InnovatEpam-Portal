@@ -6,7 +6,7 @@ from tests.conftest import create_test_user, authenticated_client
 
 
 # ---------------------------------------------------------------------------
-# POST /api/v1/ideas — existing tests
+# POST /api/v1/ideas
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
@@ -20,7 +20,9 @@ async def test_submit_idea_submitter_201(async_client, test_db):
     assert body["title"] == "My Idea"
     assert body["submitter_id"] == user.id
     assert "id" in body
-    assert body["evaluation"]["status"] == "submitted"
+    assert body["current_stage"] == "new_idea"
+    assert body["stage_reviews"] == []
+    assert body["assigned_admin_id"] is None
 
 
 @pytest.mark.asyncio
@@ -103,7 +105,6 @@ async def test_submit_idea_wrong_mime_400(async_client, test_db):
 async def test_submit_idea_total_size_exceeded_400(async_client, test_db):
     user = await create_test_user(test_db, role="submitter")
     client = await authenticated_client(async_client, test_db, user)
-    # 3 files × 20 MB = 60 MB total (> 50 MB limit)
     big_data = b"x" * (20 * 1024 * 1024)
     files = [
         ("files", (f"big{i}.pdf", io.BytesIO(big_data), "application/pdf"))
@@ -125,12 +126,11 @@ async def test_submit_idea_no_file_empty_attachments_in_response(async_client, t
 
 
 # ---------------------------------------------------------------------------
-# T009 — Retired endpoint returns 404
+# Retired endpoints
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 async def test_retired_single_attachment_endpoint_returns_404(async_client, test_db):
-    """GET /ideas/{id}/attachment (retired) must return 404."""
     user = await create_test_user(test_db, role="submitter")
     client = await authenticated_client(async_client, test_db, user)
     resp = await client.get("/api/v1/ideas/some-id/attachment")
@@ -138,12 +138,11 @@ async def test_retired_single_attachment_endpoint_returns_404(async_client, test
 
 
 # ---------------------------------------------------------------------------
-# T009 — GET /api/v1/ideas/{id}/attachments/{attachment_id}
+# GET /api/v1/ideas/{id}/attachments/{attachment_id}
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 async def test_download_attachment_image_accessible_to_any_authed_user(async_client, test_db, tmp_path, monkeypatch):
-    """Image attachments: any authenticated user can access inline."""
     import app.core.config as cfg_module
     monkeypatch.setattr(cfg_module.settings, "UPLOAD_DIR", str(tmp_path))
 
@@ -167,7 +166,6 @@ async def test_download_attachment_image_accessible_to_any_authed_user(async_cli
 
 @pytest.mark.asyncio
 async def test_download_non_image_attachment_non_owner_403(async_client, test_db, tmp_path, monkeypatch):
-    """Non-image attachment: non-owner non-admin gets 403."""
     import app.core.config as cfg_module
     monkeypatch.setattr(cfg_module.settings, "UPLOAD_DIR", str(tmp_path))
 
@@ -191,7 +189,6 @@ async def test_download_non_image_attachment_non_owner_403(async_client, test_db
 
 @pytest.mark.asyncio
 async def test_download_non_image_attachment_submitter_200(async_client, test_db, tmp_path, monkeypatch):
-    """Non-image attachment: submitter (owner) can download."""
     import app.core.config as cfg_module
     monkeypatch.setattr(cfg_module.settings, "UPLOAD_DIR", str(tmp_path))
 
@@ -212,7 +209,6 @@ async def test_download_non_image_attachment_submitter_200(async_client, test_db
 
 @pytest.mark.asyncio
 async def test_download_non_image_attachment_admin_200(async_client, test_db, tmp_path, monkeypatch):
-    """Non-image attachment: admin can download."""
     import app.core.config as cfg_module
     monkeypatch.setattr(cfg_module.settings, "UPLOAD_DIR", str(tmp_path))
 
@@ -252,12 +248,11 @@ async def test_download_attachment_unknown_attachment_404(async_client, test_db)
 
 
 # ---------------------------------------------------------------------------
-# T009 — Multi-file upload: 2 files, verify response
+# Multi-file upload
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 async def test_submit_idea_multi_file_two_files_201(async_client, test_db, tmp_path, monkeypatch):
-    """Multi-file upload: 2 files → 2 attachment records."""
     import app.core.config as cfg_module
     monkeypatch.setattr(cfg_module.settings, "UPLOAD_DIR", str(tmp_path))
 
@@ -282,7 +277,6 @@ async def test_submit_idea_multi_file_two_files_201(async_client, test_db, tmp_p
 
 @pytest.mark.asyncio
 async def test_submit_idea_six_files_400(async_client, test_db):
-    """6 files → 400 (exceeds max 5 files)."""
     user = await create_test_user(test_db, role="submitter")
     client = await authenticated_client(async_client, test_db, user)
     files = [
@@ -295,12 +289,11 @@ async def test_submit_idea_six_files_400(async_client, test_db):
 
 
 # ---------------------------------------------------------------------------
-# T009 — attachment_count in list response (replaces has_attachment)
+# attachment_count in list response
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 async def test_list_ideas_attachment_count_not_has_attachment(async_client, test_db, tmp_path, monkeypatch):
-    """List response uses attachment_count (int), not has_attachment (bool)."""
     import app.core.config as cfg_module
     monkeypatch.setattr(cfg_module.settings, "UPLOAD_DIR", str(tmp_path))
 
@@ -374,7 +367,9 @@ async def test_get_idea_detail_200(async_client, test_db):
     body = resp.json()
     assert body["title"] == "Detail Test"
     assert body["attachments"] == []
-    assert body["evaluation"]["status"] == "submitted"
+    assert body["current_stage"] == "new_idea"
+    assert body["stage_reviews"] == []
+    assert body["assigned_admin_id"] is None
 
 
 @pytest.mark.asyncio
@@ -409,7 +404,7 @@ async def test_get_idea_detail_unauthenticated_401(async_client, test_db):
 
 
 # ---------------------------------------------------------------------------
-# mine filter integration tests
+# mine filter
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
@@ -466,104 +461,226 @@ async def test_mine_filter_unauthenticated_returns_401(async_client, test_db):
 
 
 # ---------------------------------------------------------------------------
-# T009 — Integration tests I-01 to I-06, I-12: PATCH /ideas/{id}/evaluate
+# GET /api/v1/ideas?stage= filter (replaces old ?status= tests)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_I01_evaluate_unauthenticated_401(async_client, test_db):
-    """I-01: PATCH /ideas/{id}/evaluate — unauthenticated → 401."""
-    resp = await async_client.patch(
-        "/api/v1/ideas/some-id/evaluate",
-        json={"status": "under_review"},
+async def test_I07_list_ideas_stage_filter_new_idea(async_client, test_db):
+    """GET /ideas?stage=new_idea returns only new_idea ideas."""
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+
+    sub_client = await authenticated_client(async_client, test_db, submitter)
+    r1 = await sub_client.post("/api/v1/ideas", data={"title": "New", "description": "d", "category": "other"})
+    r2 = await sub_client.post("/api/v1/ideas", data={"title": "Screening", "description": "d", "category": "other"})
+
+    admin_client = await authenticated_client(async_client, test_db, admin)
+    await admin_client.post(f"/api/v1/ideas/{r2.json()['id']}/reviews", json={})
+
+    resp = await sub_client.get("/api/v1/ideas?stage=new_idea")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["ideas"][0]["current_stage"] == "new_idea"
+
+
+@pytest.mark.asyncio
+async def test_I08_list_ideas_stage_and_mine(async_client, test_db):
+    """GET /ideas?stage=new_idea&mine=true — AND combination."""
+    user1 = await create_test_user(test_db, role="submitter")
+    user2 = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+
+    c1 = await authenticated_client(async_client, test_db, user1)
+    r1 = await c1.post("/api/v1/ideas", data={"title": "U1 New", "description": "d", "category": "other"})
+    r2 = await c1.post("/api/v1/ideas", data={"title": "U1 Screening", "description": "d", "category": "other"})
+
+    c2 = await authenticated_client(async_client, test_db, user2)
+    await c2.post("/api/v1/ideas", data={"title": "U2 New", "description": "d", "category": "other"})
+
+    cadmin = await authenticated_client(async_client, test_db, admin)
+    await cadmin.post(f"/api/v1/ideas/{r2.json()['id']}/reviews", json={})
+
+    c1 = await authenticated_client(async_client, test_db, user1)
+    resp = await c1.get("/api/v1/ideas?stage=new_idea&mine=true")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["ideas"][0]["current_stage"] == "new_idea"
+
+
+@pytest.mark.asyncio
+async def test_I09_list_ideas_invalid_stage_422(async_client, test_db):
+    """GET /ideas?stage=invalid → 422 Unprocessable Entity."""
+    user = await create_test_user(test_db, role="submitter")
+    client = await authenticated_client(async_client, test_db, user)
+    resp = await client.get("/api/v1/ideas?stage=invalid_value")
+    assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/ideas/{id} — stage_reviews visibility (FR-009)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_I10_get_idea_other_submitter_sees_empty_stage_reviews(async_client, test_db):
+    """GET /ideas/{id} as non-owner non-admin → stage_reviews is []."""
+    owner = await create_test_user(test_db, role="submitter")
+    stranger = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+
+    owner_client = await authenticated_client(async_client, test_db, owner)
+    idea_resp = await owner_client.post(
+        "/api/v1/ideas",
+        data={"title": "Idea", "description": "d", "category": "other"},
     )
+    idea_id = idea_resp.json()["id"]
+
+    admin_client = await authenticated_client(async_client, test_db, admin)
+    await admin_client.post(f"/api/v1/ideas/{idea_id}/reviews", json={"comment": "Check"})
+
+    stranger_client = await authenticated_client(async_client, test_db, stranger)
+    resp = await stranger_client.get(f"/api/v1/ideas/{idea_id}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["current_stage"] == "initial_screening"
+    assert body["stage_reviews"] == []
+
+
+@pytest.mark.asyncio
+async def test_I11_get_idea_admin_sees_full_stage_reviews(async_client, test_db):
+    """GET /ideas/{id} as admin → stage_reviews is full."""
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+
+    sub_client = await authenticated_client(async_client, test_db, submitter)
+    idea_resp = await sub_client.post(
+        "/api/v1/ideas",
+        data={"title": "Idea", "description": "d", "category": "other"},
+    )
+    idea_id = idea_resp.json()["id"]
+
+    admin_client = await authenticated_client(async_client, test_db, admin)
+    await admin_client.post(f"/api/v1/ideas/{idea_id}/reviews", json={"comment": "Reviewed"})
+
+    resp = await admin_client.get(f"/api/v1/ideas/{idea_id}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["current_stage"] == "initial_screening"
+    assert len(body["stage_reviews"]) == 1
+    assert body["stage_reviews"][0]["comment"] == "Reviewed"
+
+
+@pytest.mark.asyncio
+async def test_I11b_get_idea_original_submitter_sees_stage_reviews(async_client, test_db):
+    """GET /ideas/{id} as original submitter → stage_reviews is full (FR-009)."""
+    owner = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+
+    owner_client = await authenticated_client(async_client, test_db, owner)
+    idea_resp = await owner_client.post(
+        "/api/v1/ideas",
+        data={"title": "Idea", "description": "d", "category": "other"},
+    )
+    idea_id = idea_resp.json()["id"]
+
+    admin_client = await authenticated_client(async_client, test_db, admin)
+    await admin_client.post(f"/api/v1/ideas/{idea_id}/reviews", json={"comment": "Checked"})
+
+    owner_client = await authenticated_client(async_client, test_db, owner)
+    resp = await owner_client.get(f"/api/v1/ideas/{idea_id}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["stage_reviews"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# reviewer_name / assigned_admin_name
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_I13_get_idea_includes_assigned_admin_name_after_advance(async_client, test_db):
+    """GET /ideas/{id} returns assigned_admin_name after initial_screening transition."""
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+
+    sub_client = await authenticated_client(async_client, test_db, submitter)
+    idea_resp = await sub_client.post(
+        "/api/v1/ideas",
+        data={"title": "Idea", "description": "d", "category": "other"},
+    )
+    idea_id = idea_resp.json()["id"]
+
+    admin_client = await authenticated_client(async_client, test_db, admin)
+    await admin_client.post(f"/api/v1/ideas/{idea_id}/reviews", json={})
+
+    sub_client = await authenticated_client(async_client, test_db, submitter)
+    resp = await sub_client.get(f"/api/v1/ideas/{idea_id}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["assigned_admin_name"] == admin.full_name
+
+
+@pytest.mark.asyncio
+async def test_I14_list_ideas_includes_reviewer_name_for_initial_screening(async_client, test_db):
+    """GET /ideas returns reviewer_name for initial_screening ideas, None for new_idea."""
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+
+    sub_client = await authenticated_client(async_client, test_db, submitter)
+    r1 = await sub_client.post("/api/v1/ideas", data={"title": "New", "description": "d", "category": "other"})
+    r2 = await sub_client.post("/api/v1/ideas", data={"title": "Screening", "description": "d", "category": "other"})
+
+    admin_client = await authenticated_client(async_client, test_db, admin)
+    await admin_client.post(f"/api/v1/ideas/{r2.json()['id']}/reviews", json={})
+
+    resp = await sub_client.get("/api/v1/ideas")
+    assert resp.status_code == 200
+    ideas_by_title = {i["title"]: i for i in resp.json()["ideas"]}
+    assert ideas_by_title["Screening"]["reviewer_name"] == admin.full_name
+    assert ideas_by_title["New"]["reviewer_name"] is None
+
+
+# ---------------------------------------------------------------------------
+# T002 — POST /api/v1/ideas/{id}/reviews [TDD Gate tests]
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_IR01_post_reviews_unauthenticated_401(async_client, test_db):
+    """IR-01: POST /reviews unauthenticated → 401."""
+    resp = await async_client.post("/api/v1/ideas/some-id/reviews", json={})
     assert resp.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_I02_evaluate_submitter_403(async_client, test_db):
-    """I-02: PATCH /ideas/{id}/evaluate — submitter role → 403."""
-    submitter = await create_test_user(test_db, role="submitter")
-    client = await authenticated_client(async_client, test_db, submitter)
-    idea_resp = await client.post(
-        "/api/v1/ideas",
-        data={"title": "Idea", "description": "d", "category": "other"},
-    )
-    idea_id = idea_resp.json()["id"]
-
-    resp = await client.patch(f"/api/v1/ideas/{idea_id}/evaluate", json={"status": "under_review"})
-    assert resp.status_code == 403
-
-
-@pytest.mark.asyncio
-async def test_I03_evaluate_admin_valid_transition_200(async_client, test_db):
-    """I-03: PATCH /ideas/{id}/evaluate — admin, valid transition → 200."""
+async def test_IR02_post_reviews_201_happy_path(async_client, test_db):
+    """IR-02: POST /reviews happy path → 201 with full IdeaDetailResponse."""
     submitter = await create_test_user(test_db, role="submitter")
     admin = await create_test_user(test_db, role="admin")
 
     sub_client = await authenticated_client(async_client, test_db, submitter)
     idea_resp = await sub_client.post(
         "/api/v1/ideas",
-        data={"title": "Idea", "description": "d", "category": "other"},
+        data={"title": "Idea", "description": "desc", "category": "other"},
     )
     idea_id = idea_resp.json()["id"]
 
     admin_client = await authenticated_client(async_client, test_db, admin)
-    resp = await admin_client.patch(
-        f"/api/v1/ideas/{idea_id}/evaluate",
-        json={"status": "under_review", "comment": "Reviewing now"},
+    resp = await admin_client.post(
+        f"/api/v1/ideas/{idea_id}/reviews",
+        json={"comment": "Looks good"},
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 201
     body = resp.json()
-    assert body["evaluation"]["status"] == "under_review"
-    assert body["evaluation"]["comment"] == "Reviewing now"
-    assert body["evaluation"]["assigned_admin_id"] == admin.id
+    assert body["current_stage"] == "initial_screening"
+    assert body["assigned_admin_id"] == admin.id
+    assert len(body["stage_reviews"]) == 1
+    assert body["stage_reviews"][0]["stage"] == "initial_screening"
 
 
 @pytest.mark.asyncio
-async def test_I04_evaluate_invalid_transition_400(async_client, test_db):
-    """I-04: PATCH /ideas/{id}/evaluate — invalid transition → 400."""
-    submitter = await create_test_user(test_db, role="submitter")
-    admin = await create_test_user(test_db, role="admin")
-
-    sub_client = await authenticated_client(async_client, test_db, submitter)
-    idea_resp = await sub_client.post(
-        "/api/v1/ideas",
-        data={"title": "Idea", "description": "d", "category": "other"},
-    )
-    idea_id = idea_resp.json()["id"]
-
-    admin_client = await authenticated_client(async_client, test_db, admin)
-    resp = await admin_client.patch(
-        f"/api/v1/ideas/{idea_id}/evaluate",
-        json={"status": "accepted"},  # cannot skip under_review
-    )
-    assert resp.status_code == 400
-
-
-@pytest.mark.asyncio
-async def test_I05_evaluate_locked_idea_409(async_client, test_db):
-    """I-05: PATCH /ideas/{id}/evaluate — locked idea → 409."""
-    submitter = await create_test_user(test_db, role="submitter")
-    admin = await create_test_user(test_db, role="admin")
-
-    sub_client = await authenticated_client(async_client, test_db, submitter)
-    idea_resp = await sub_client.post(
-        "/api/v1/ideas",
-        data={"title": "Idea", "description": "d", "category": "other"},
-    )
-    idea_id = idea_resp.json()["id"]
-
-    admin_client = await authenticated_client(async_client, test_db, admin)
-    await admin_client.patch(f"/api/v1/ideas/{idea_id}/evaluate", json={"status": "under_review"})
-    await admin_client.patch(f"/api/v1/ideas/{idea_id}/evaluate", json={"status": "accepted"})
-
-    resp = await admin_client.patch(f"/api/v1/ideas/{idea_id}/evaluate", json={"status": "under_review"})
-    assert resp.status_code == 409
-
-
-@pytest.mark.asyncio
-async def test_I06_evaluate_non_assigned_admin_403(async_client, test_db):
-    """I-06: PATCH /ideas/{id}/evaluate — non-assigned admin → 403."""
+async def test_IR03_post_reviews_non_assigned_admin_403(async_client, test_db):
+    """IR-03: POST /reviews non-assigned admin → 403."""
     submitter = await create_test_user(test_db, role="submitter")
     admin1 = await create_test_user(test_db, role="admin")
     admin2 = await create_test_user(test_db, role="admin")
@@ -576,16 +693,37 @@ async def test_I06_evaluate_non_assigned_admin_403(async_client, test_db):
     idea_id = idea_resp.json()["id"]
 
     admin1_client = await authenticated_client(async_client, test_db, admin1)
-    await admin1_client.patch(f"/api/v1/ideas/{idea_id}/evaluate", json={"status": "under_review"})
+    await admin1_client.post(f"/api/v1/ideas/{idea_id}/reviews", json={})
 
     admin2_client = await authenticated_client(async_client, test_db, admin2)
-    resp = await admin2_client.patch(f"/api/v1/ideas/{idea_id}/evaluate", json={"status": "accepted"})
+    resp = await admin2_client.post(f"/api/v1/ideas/{idea_id}/reviews", json={})
     assert resp.status_code == 403
 
 
 @pytest.mark.asyncio
-async def test_I12_evaluate_comment_over_1000_chars_422(async_client, test_db):
-    """I-12: PATCH /ideas/{id}/evaluate — comment > 1,000 chars → 422."""
+async def test_IR04_post_reviews_comment_over_1000_chars_422(async_client, test_db):
+    """IR-04: POST /reviews comment > 1000 chars → 422."""
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+
+    sub_client = await authenticated_client(async_client, test_db, submitter)
+    idea_resp = await sub_client.post(
+        "/api/v1/ideas",
+        data={"title": "Idea", "description": "d", "category": "other"},
+    )
+    idea_id = idea_resp.json()["id"]
+
+    admin_client = await authenticated_client(async_client, test_db, admin)
+    resp = await admin_client.post(
+        f"/api/v1/ideas/{idea_id}/reviews",
+        json={"comment": "x" * 1001},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_IR05_patch_evaluate_removed_returns_404_or_405(async_client, test_db):
+    """IR-05: PATCH /ideas/{id}/evaluate is removed — must return 404 or 405."""
     submitter = await create_test_user(test_db, role="submitter")
     admin = await create_test_user(test_db, role="admin")
 
@@ -599,172 +737,99 @@ async def test_I12_evaluate_comment_over_1000_chars_422(async_client, test_db):
     admin_client = await authenticated_client(async_client, test_db, admin)
     resp = await admin_client.patch(
         f"/api/v1/ideas/{idea_id}/evaluate",
-        json={"status": "under_review", "comment": "x" * 1001},
+        json={"status": "under_review"},
     )
+    assert resp.status_code in (404, 405)
+
+
+# ---------------------------------------------------------------------------
+# T018+T019 — final_selection (US2) [TDD Gate tests — will fail until T020]
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_IR06_post_reviews_final_selection_without_outcome_422(async_client, test_db):
+    """IR-06: Advancing to final_selection without outcome → 422."""
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+
+    sub_client = await authenticated_client(async_client, test_db, submitter)
+    idea_resp = await sub_client.post(
+        "/api/v1/ideas",
+        data={"title": "Idea", "description": "d", "category": "other"},
+    )
+    idea_id = idea_resp.json()["id"]
+
+    admin_client = await authenticated_client(async_client, test_db, admin)
+    # Advance through all non-terminal stages
+    for _ in range(3):
+        r = await admin_client.post(f"/api/v1/ideas/{idea_id}/reviews", json={})
+        assert r.status_code == 201
+
+    # Try final_selection without outcome
+    resp = await admin_client.post(f"/api/v1/ideas/{idea_id}/reviews", json={})
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_IR07_post_reviews_final_selection_with_outcome_201(async_client, test_db):
+    """IR-07: Advancing to final_selection with outcome → 201, idea is locked."""
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+
+    sub_client = await authenticated_client(async_client, test_db, submitter)
+    idea_resp = await sub_client.post(
+        "/api/v1/ideas",
+        data={"title": "Idea", "description": "d", "category": "other"},
+    )
+    idea_id = idea_resp.json()["id"]
+
+    admin_client = await authenticated_client(async_client, test_db, admin)
+    for _ in range(3):
+        await admin_client.post(f"/api/v1/ideas/{idea_id}/reviews", json={})
+
+    resp = await admin_client.post(
+        f"/api/v1/ideas/{idea_id}/reviews",
+        json={"outcome": "accepted"},
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["current_stage"] == "final_selection"
+    assert body["stage_reviews"][-1]["outcome"] == "accepted"
+
+
+@pytest.mark.asyncio
+async def test_IR08_post_reviews_locked_idea_422(async_client, test_db):
+    """IR-08: Any advance after final_selection → 422 (locked)."""
+    submitter = await create_test_user(test_db, role="submitter")
+    admin = await create_test_user(test_db, role="admin")
+
+    sub_client = await authenticated_client(async_client, test_db, submitter)
+    idea_resp = await sub_client.post(
+        "/api/v1/ideas",
+        data={"title": "Idea", "description": "d", "category": "other"},
+    )
+    idea_id = idea_resp.json()["id"]
+
+    admin_client = await authenticated_client(async_client, test_db, admin)
+    for _ in range(3):
+        await admin_client.post(f"/api/v1/ideas/{idea_id}/reviews", json={})
+    await admin_client.post(f"/api/v1/ideas/{idea_id}/reviews", json={"outcome": "rejected"})
+
+    resp = await admin_client.post(f"/api/v1/ideas/{idea_id}/reviews", json={"outcome": "accepted"})
     assert resp.status_code == 422
 
 
 # ---------------------------------------------------------------------------
-# T013 — Integration tests I-10 to I-11: GET /ideas/{id} visibility
+# T024+T025 — stage_reviews visibility (US3) [additional visibility scenarios]
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_I10_get_idea_submitter_under_review_comment_hidden(async_client, test_db):
-    """I-10: GET /ideas/{id} as submitter when under_review → comment is null."""
+async def test_IR09_other_admin_sees_full_stage_reviews_readonly(async_client, test_db):
+    """Other admin sees full stage_reviews but cannot advance (not assigned admin)."""
     submitter = await create_test_user(test_db, role="submitter")
-    admin = await create_test_user(test_db, role="admin")
-
-    # Create idea as submitter first
-    sub_client = await authenticated_client(async_client, test_db, submitter)
-    idea_resp = await sub_client.post(
-        "/api/v1/ideas",
-        data={"title": "Idea", "description": "d", "category": "other"},
-    )
-    idea_id = idea_resp.json()["id"]
-
-    # Admin evaluates (overwrites cookie)
-    admin_client = await authenticated_client(async_client, test_db, admin)
-    await admin_client.patch(
-        f"/api/v1/ideas/{idea_id}/evaluate",
-        json={"status": "under_review", "comment": "Internal note"},
-    )
-
-    # Re-authenticate as submitter to restore cookie before GET
-    sub_client = await authenticated_client(async_client, test_db, submitter)
-    resp = await sub_client.get(f"/api/v1/ideas/{idea_id}")
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["evaluation"]["status"] == "under_review"
-    assert body["evaluation"]["comment"] is None
-
-
-@pytest.mark.asyncio
-async def test_I11b_get_idea_non_owner_submitter_accepted_comment_hidden(async_client, test_db):
-    owner    = await create_test_user(test_db, role="submitter")
-    stranger = await create_test_user(test_db, role="submitter")
-    admin    = await create_test_user(test_db, role="admin")
-
-    owner_client = await authenticated_client(async_client, test_db, owner)
-    idea_resp = await owner_client.post("/api/v1/ideas",
-        data={"title": "Idea", "description": "d", "category": "other"})
-    idea_id = idea_resp.json()["id"]
-
-    admin_client = await authenticated_client(async_client, test_db, admin)
-    await admin_client.patch(f"/api/v1/ideas/{idea_id}/evaluate", json={"status": "under_review"})
-    await admin_client.patch(f"/api/v1/ideas/{idea_id}/evaluate",
-        json={"status": "accepted", "comment": "Great!"})
-
-    stranger_client = await authenticated_client(async_client, test_db, stranger)
-    resp = await stranger_client.get(f"/api/v1/ideas/{idea_id}")
-    assert resp.status_code == 200
-    assert resp.json()["evaluation"]["comment"] is None
-
-
-@pytest.mark.asyncio
-async def test_I11_get_idea_admin_under_review_comment_visible(async_client, test_db):
-    """I-11: GET /ideas/{id} as admin when under_review → comment is present."""
-    submitter = await create_test_user(test_db, role="submitter")
-    admin = await create_test_user(test_db, role="admin")
-
-    sub_client = await authenticated_client(async_client, test_db, submitter)
-    idea_resp = await sub_client.post(
-        "/api/v1/ideas",
-        data={"title": "Idea", "description": "d", "category": "other"},
-    )
-    idea_id = idea_resp.json()["id"]
-
-    admin_client = await authenticated_client(async_client, test_db, admin)
-    await admin_client.patch(
-        f"/api/v1/ideas/{idea_id}/evaluate",
-        json={"status": "under_review", "comment": "Internal note"},
-    )
-
-    resp = await admin_client.get(f"/api/v1/ideas/{idea_id}")
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["evaluation"]["status"] == "under_review"
-    assert body["evaluation"]["comment"] == "Internal note"
-
-
-# ---------------------------------------------------------------------------
-# T021 — Integration tests I-07 to I-09: GET /ideas?status=
-# ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_I07_list_ideas_status_filter_submitted(async_client, test_db):
-    """I-07: GET /ideas?status=submitted — returns only submitted ideas."""
-    submitter = await create_test_user(test_db, role="submitter")
-    admin = await create_test_user(test_db, role="admin")
-
-    sub_client = await authenticated_client(async_client, test_db, submitter)
-    r1 = await sub_client.post("/api/v1/ideas", data={"title": "Submitted", "description": "d", "category": "other"})
-    r2 = await sub_client.post("/api/v1/ideas", data={"title": "Reviewed", "description": "d", "category": "other"})
-
-    admin_client = await authenticated_client(async_client, test_db, admin)
-    await admin_client.patch(f"/api/v1/ideas/{r2.json()['id']}/evaluate", json={"status": "under_review"})
-
-    resp = await sub_client.get("/api/v1/ideas?status=submitted")
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["total"] == 1
-    assert body["ideas"][0]["evaluation_status"] == "submitted"
-
-
-@pytest.mark.asyncio
-async def test_I08_list_ideas_status_and_mine_and_semantics(async_client, test_db):
-    """I-08: GET /ideas?status=accepted&mine=true — AND combination."""
-    user1 = await create_test_user(test_db, role="submitter")
-    user2 = await create_test_user(test_db, role="submitter")
-    admin = await create_test_user(test_db, role="admin")
+    admin1 = await create_test_user(test_db, role="admin")
     admin2 = await create_test_user(test_db, role="admin")
 
-    # Submit user1's idea first, then immediately use it
-    c1 = await authenticated_client(async_client, test_db, user1)
-    r1 = await c1.post("/api/v1/ideas", data={"title": "U1 Sub", "description": "d", "category": "other"})
-    idea1_id = r1.json()["id"]
-
-    # Submit user2's idea
-    c2 = await authenticated_client(async_client, test_db, user2)
-    r2 = await c2.post("/api/v1/ideas", data={"title": "U2 Sub", "description": "d", "category": "other"})
-    idea2_id = r2.json()["id"]
-
-    # Admin moves user1's idea through the lifecycle
-    cadmin = await authenticated_client(async_client, test_db, admin)
-    await cadmin.patch(f"/api/v1/ideas/{idea1_id}/evaluate", json={"status": "under_review"})
-    await cadmin.patch(f"/api/v1/ideas/{idea1_id}/evaluate", json={"status": "accepted"})
-
-    # admin2 reviews user2's idea (keeps it in under_review)
-    cadmin2 = await authenticated_client(async_client, test_db, admin2)
-    await cadmin2.patch(f"/api/v1/ideas/{idea2_id}/evaluate", json={"status": "under_review"})
-
-    # Re-authenticate as user1 for the final query
-    c1 = await authenticated_client(async_client, test_db, user1)
-    resp = await c1.get("/api/v1/ideas?status=accepted&mine=true")
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["total"] == 1
-    assert body["ideas"][0]["evaluation_status"] == "accepted"
-
-
-@pytest.mark.asyncio
-async def test_I09_list_ideas_invalid_status_422(async_client, test_db):
-    """I-09: GET /ideas?status=invalid → 422 Unprocessable Entity."""
-    user = await create_test_user(test_db, role="submitter")
-    client = await authenticated_client(async_client, test_db, user)
-    resp = await client.get("/api/v1/ideas?status=invalid_value")
-    assert resp.status_code == 422
-
-
-# ---------------------------------------------------------------------------
-# Reviewer name — integration tests I-13 to I-14
-# ---------------------------------------------------------------------------
-
-@pytest.mark.asyncio
-async def test_I13_get_idea_includes_assigned_admin_name_after_evaluate(async_client, test_db):
-    """I-13: GET /ideas/{id} returns assigned_admin_name after under_review transition."""
-    submitter = await create_test_user(test_db, role="submitter")
-    admin = await create_test_user(test_db, role="admin")
-
     sub_client = await authenticated_client(async_client, test_db, submitter)
     idea_resp = await sub_client.post(
         "/api/v1/ideas",
@@ -772,31 +837,16 @@ async def test_I13_get_idea_includes_assigned_admin_name_after_evaluate(async_cl
     )
     idea_id = idea_resp.json()["id"]
 
-    admin_client = await authenticated_client(async_client, test_db, admin)
-    await admin_client.patch(f"/api/v1/ideas/{idea_id}/evaluate", json={"status": "under_review"})
+    admin1_client = await authenticated_client(async_client, test_db, admin1)
+    await admin1_client.post(f"/api/v1/ideas/{idea_id}/reviews", json={"comment": "From admin1"})
 
-    sub_client = await authenticated_client(async_client, test_db, submitter)
-    resp = await sub_client.get(f"/api/v1/ideas/{idea_id}")
+    admin2_client = await authenticated_client(async_client, test_db, admin2)
+    resp = await admin2_client.get(f"/api/v1/ideas/{idea_id}")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["evaluation"]["assigned_admin_name"] == admin.full_name
+    assert len(body["stage_reviews"]) == 1
+    assert body["stage_reviews"][0]["comment"] == "From admin1"
 
-
-@pytest.mark.asyncio
-async def test_I14_list_ideas_includes_reviewer_name_for_under_review(async_client, test_db):
-    """I-14: GET /ideas returns reviewer_name for under_review ideas, None for submitted."""
-    submitter = await create_test_user(test_db, role="submitter")
-    admin = await create_test_user(test_db, role="admin")
-
-    sub_client = await authenticated_client(async_client, test_db, submitter)
-    r1 = await sub_client.post("/api/v1/ideas", data={"title": "Submitted", "description": "d", "category": "other"})
-    r2 = await sub_client.post("/api/v1/ideas", data={"title": "Reviewed", "description": "d", "category": "other"})
-
-    admin_client = await authenticated_client(async_client, test_db, admin)
-    await admin_client.patch(f"/api/v1/ideas/{r2.json()['id']}/evaluate", json={"status": "under_review"})
-
-    resp = await sub_client.get("/api/v1/ideas")
-    assert resp.status_code == 200
-    ideas_by_title = {i["title"]: i for i in resp.json()["ideas"]}
-    assert ideas_by_title["Reviewed"]["reviewer_name"] == admin.full_name
-    assert ideas_by_title["Submitted"]["reviewer_name"] is None
+    # Admin2 cannot advance (not assigned)
+    advance_resp = await admin2_client.post(f"/api/v1/ideas/{idea_id}/reviews", json={})
+    assert advance_resp.status_code == 403

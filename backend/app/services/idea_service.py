@@ -8,22 +8,32 @@ from typing import Optional
 
 import anyio
 from fastapi import HTTPException, UploadFile
-from sqlalchemy import select, func, text
+from sqlalchemy import select, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.attachment import Attachment
 from app.models.idea import Idea
+from app.models.stage_review import StageReview
 from app.models.user import User
 from app.schemas.ideas import (
     AttachmentInfo,
-    EvaluationInfo,
-    EvaluationStatus,
-    EvaluateIdeaRequest,
     IdeaDetailResponse,
     IdeaListResponse,
     IdeaSummaryResponse,
+    Stage,
+    StageReviewRecord,
 )
+
+STAGES = [
+    "new_idea",
+    "initial_screening",
+    "technical_review",
+    "business_impact_assessment",
+    "final_selection",
+]
+STAGE_ORDER = {s: i for i, s in enumerate(STAGES)}
+TERMINAL_STAGE = "final_selection"
 
 _VALID_CATEGORIES = {
     "process_improvement", "technology", "cost_saving",
@@ -56,20 +66,13 @@ _IMAGE_MIME: set[str] = {"image/png", "image/jpeg", "image/gif"}
 MAX_FILES = 5
 MAX_TOTAL_BYTES = 50 * 1024 * 1024  # 50 MB
 
-ALLOWED_TRANSITIONS: dict[str, set[str]] = {
-    "submitted":    {"under_review"},
-    "under_review": {"under_review", "accepted", "rejected"},
-    "accepted":     set(),
-    "rejected":     set(),
-}
-
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 # ---------------------------------------------------------------------------
-# T010 — Multi-file validation
+# Multi-file validation
 # ---------------------------------------------------------------------------
 
 def validate_files(files: list[UploadFile]) -> None:
@@ -98,12 +101,12 @@ def validate_files(files: list[UploadFile]) -> None:
     if total_bytes > MAX_TOTAL_BYTES:
         raise HTTPException(
             status_code=400,
-            detail=f"Combined file size exceeds the 50 MB limit.",
+            detail="Combined file size exceeds the 50 MB limit.",
         )
 
 
 # ---------------------------------------------------------------------------
-# T011 — Atomic file save with rollback
+# Atomic file save with rollback
 # ---------------------------------------------------------------------------
 
 def _write_bytes(dest: Path, data: bytes) -> None:
@@ -128,25 +131,49 @@ async def save_files_atomic(idea_id: str, pairs: list[tuple[Path, bytes]]) -> No
 
 
 # ---------------------------------------------------------------------------
-# Legacy single-file helpers (kept for backward compat with evaluate_idea)
+# Internal data loaders
 # ---------------------------------------------------------------------------
 
-def build_evaluation_info(idea: Idea, caller: User, admin_name: Optional[str] = None) -> EvaluationInfo:
-    """Apply visibility rules from data-model.md §3.3."""
-    is_admin = caller.role == "admin"
-    is_owner = caller.id == idea.submitter_id
-    comment_visible = is_admin or (is_owner and idea.evaluation_status in ("accepted", "rejected"))
-    return EvaluationInfo(
-        status=idea.evaluation_status,
-        comment=idea.evaluation_comment if comment_visible else None,
-        evaluated_at=idea.evaluated_at,
-        assigned_admin_id=idea.assigned_admin_id if is_admin else None,
-        assigned_admin_name=admin_name,
+async def _load_attachments(db: AsyncSession, idea_id: str) -> list[AttachmentInfo]:
+    result = await db.execute(
+        select(Attachment).where(Attachment.idea_id == idea_id)
     )
+    rows = result.scalars().all()
+    return [
+        AttachmentInfo(
+            id=a.id,
+            name=a.filename,
+            size=a.size,
+            mime_type=a.mime_type,
+            is_image=a.mime_type in _IMAGE_MIME,
+        )
+        for a in rows
+    ]
+
+
+async def _load_stage_reviews(db: AsyncSession, idea_id: str) -> list[StageReviewRecord]:
+    result = await db.execute(
+        select(StageReview, User.full_name.label("reviewer_name"))
+        .outerjoin(User, User.id == StageReview.reviewed_by)
+        .where(StageReview.idea_id == idea_id)
+        .order_by(StageReview.reviewed_at)
+    )
+    rows = result.all()
+    return [
+        StageReviewRecord(
+            id=r.StageReview.id,
+            stage=r.StageReview.stage,
+            outcome=r.StageReview.outcome,
+            comment=r.StageReview.comment,
+            reviewer_name=r.reviewer_name,
+            reviewed_at=r.StageReview.reviewed_at,
+        )
+        for r in rows
+    ]
 
 
 # ---------------------------------------------------------------------------
-# T012 — create_idea with multi-file support
+# create_idea with multi-file support
 # ---------------------------------------------------------------------------
 
 async def create_idea(
@@ -170,7 +197,6 @@ async def create_idea(
     idea_id = str(uuid.uuid4())
     now = _utc_now_iso()
 
-    # Collect file bytes and validate total size again (size may have been approximate)
     file_payloads: list[tuple[str, str, str, int, bytes]] = []
     if files:
         pairs_to_write: list[tuple[Path, bytes]] = []
@@ -234,37 +260,17 @@ async def create_idea(
         submitter_name=current_user.full_name,
         submitted_at=idea.submitted_at,
         attachments=attachments_info,
-        evaluation=EvaluationInfo(
-            status=idea.evaluation_status,
-            comment=None,
-            evaluated_at=None,
-            assigned_admin_id=None,
-            assigned_admin_name=None,
-        ),
+        current_stage="new_idea",
+        assigned_admin_id=None,
+        assigned_admin_name=None,
+        stage_reviews=[],
         extra_data=json.loads(idea.extra_data) if idea.extra_data is not None else None,
     )
 
 
 # ---------------------------------------------------------------------------
-# T013 — get_idea loads Attachment rows
+# get_idea — loads stage_reviews with visibility filtering (FR-009)
 # ---------------------------------------------------------------------------
-
-async def _load_attachments(db: AsyncSession, idea_id: str) -> list[AttachmentInfo]:
-    result = await db.execute(
-        select(Attachment).where(Attachment.idea_id == idea_id)
-    )
-    rows = result.scalars().all()
-    return [
-        AttachmentInfo(
-            id=a.id,
-            name=a.filename,
-            size=a.size,
-            mime_type=a.mime_type,
-            is_image=a.mime_type in _IMAGE_MIME,
-        )
-        for a in rows
-    ]
-
 
 async def get_idea(
     db: AsyncSession,
@@ -283,21 +289,17 @@ async def get_idea(
     idea = row.Idea
     attachments = await _load_attachments(db, idea_id)
 
-    admin_name = None
+    admin_name: Optional[str] = None
     if idea.assigned_admin_id:
         admin = await db.get(User, idea.assigned_admin_id)
         admin_name = admin.full_name if admin else None
 
-    if caller is not None:
-        evaluation = build_evaluation_info(idea, caller, admin_name)
-    else:
-        evaluation = EvaluationInfo(
-            status=idea.evaluation_status,
-            comment=idea.evaluation_comment,
-            evaluated_at=idea.evaluated_at,
-            assigned_admin_id=idea.assigned_admin_id,
-            assigned_admin_name=admin_name,
-        )
+    # FR-009 visibility: all admins + original submitter see full stage_reviews; others get []
+    stage_reviews: list[StageReviewRecord] = []
+    if caller is None:
+        stage_reviews = await _load_stage_reviews(db, idea_id)
+    elif caller.role == "admin" or caller.id == idea.submitter_id:
+        stage_reviews = await _load_stage_reviews(db, idea_id)
 
     return IdeaDetailResponse(
         id=idea.id,
@@ -308,13 +310,16 @@ async def get_idea(
         submitter_name=row.submitter_name,
         submitted_at=idea.submitted_at,
         attachments=attachments,
-        evaluation=evaluation,
+        current_stage=idea.current_stage,
+        assigned_admin_id=idea.assigned_admin_id,
+        assigned_admin_name=admin_name,
+        stage_reviews=stage_reviews,
         extra_data=json.loads(idea.extra_data) if idea.extra_data is not None else None,
     )
 
 
 # ---------------------------------------------------------------------------
-# T014 — list_ideas returns attachment_count
+# list_ideas — uses current_stage and stage_filter
 # ---------------------------------------------------------------------------
 
 async def list_ideas(
@@ -323,7 +328,7 @@ async def list_ideas(
     page: int = 1,
     limit: int = 20,
     submitter_id_filter: Optional[str] = None,
-    status_filter: Optional[EvaluationStatus] = None,
+    stage_filter: Optional[Stage] = None,
 ) -> IdeaListResponse:
     offset = (page - 1) * limit
 
@@ -337,9 +342,9 @@ async def list_ideas(
         base_count_q = base_count_q.where(Idea.submitter_id == submitter_id_filter)
         base_list_q = base_list_q.where(Idea.submitter_id == submitter_id_filter)
 
-    if status_filter is not None:
-        base_count_q = base_count_q.where(Idea.evaluation_status == status_filter)
-        base_list_q = base_list_q.where(Idea.evaluation_status == status_filter)
+    if stage_filter is not None:
+        base_count_q = base_count_q.where(Idea.current_stage == stage_filter)
+        base_list_q = base_list_q.where(Idea.current_stage == stage_filter)
 
     total_result = await db.execute(base_count_q)
     total = total_result.scalar_one()
@@ -358,7 +363,6 @@ async def list_ideas(
         admins_result = await db.execute(select(User).where(User.id.in_(admin_ids)))
         admin_names = {u.id: u.full_name for u in admins_result.scalars()}
 
-    # Fetch attachment counts for all ideas in a single query
     idea_ids = [row.Idea.id for row in rows]
     counts_map: dict[str, int] = {}
     if idea_ids:
@@ -369,6 +373,16 @@ async def list_ideas(
         )
         counts_map = {r.idea_id: r.cnt for r in count_result}
 
+    # Fetch outcomes for final_selection ideas (one extra query, bounded by page size)
+    outcome_map: dict[str, str] = {}
+    final_ids = [row.Idea.id for row in rows if row.Idea.current_stage == "final_selection"]
+    if final_ids:
+        outcome_result = await db.execute(
+            select(StageReview.idea_id, StageReview.outcome)
+            .where(StageReview.idea_id.in_(final_ids), StageReview.stage == "final_selection")
+        )
+        outcome_map = {r.idea_id: r.outcome for r in outcome_result if r.outcome}
+
     ideas = [
         IdeaSummaryResponse(
             id=row.Idea.id,
@@ -377,7 +391,8 @@ async def list_ideas(
             submitter_name=row.submitter_name,
             submitted_at=row.Idea.submitted_at,
             attachment_count=counts_map.get(row.Idea.id, 0),
-            evaluation_status=row.Idea.evaluation_status,
+            current_stage=row.Idea.current_stage,
+            outcome=outcome_map.get(row.Idea.id) if row.Idea.current_stage == "final_selection" else None,
             reviewer_name=admin_names.get(row.Idea.assigned_admin_id) if row.Idea.assigned_admin_id else None,
             extra_data=json.loads(row.Idea.extra_data) if row.Idea.extra_data is not None else None,
         )
@@ -388,70 +403,78 @@ async def list_ideas(
 
 
 # ---------------------------------------------------------------------------
-# evaluate_idea (unchanged logic, updated to use attachments)
+# advance_stage — US1 + US2 implementation
 # ---------------------------------------------------------------------------
 
-async def evaluate_idea(
+async def advance_stage(
     db: AsyncSession,
     idea_id: str,
-    acting_admin: User,
-    new_status: EvaluationStatus,
+    acting_admin_id: str,
     comment: Optional[str],
+    outcome: Optional[str],
 ) -> IdeaDetailResponse:
+    # Validate comment length (SC-007)
+    if comment is not None and len(comment) > 1000:
+        raise HTTPException(status_code=422, detail="Comment must not exceed 1000 characters.")
+
+    # Load acting admin
+    acting_admin = await db.get(User, acting_admin_id)
+    if acting_admin is None or acting_admin.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins may advance ideas.")
+
+    # Load idea
     result = await db.execute(
-        select(Idea, User.full_name.label("submitter_name"))
-        .join(User, User.id == Idea.submitter_id)
-        .where(Idea.id == idea_id)
+        select(Idea).where(Idea.id == idea_id)
     )
-    row = result.first()
-    if row is None:
+    idea = result.scalar_one_or_none()
+    if idea is None:
         raise HTTPException(status_code=404, detail="Idea not found.")
 
-    if acting_admin.role != "admin":
-        raise HTTPException(status_code=403, detail="Only admins may evaluate ideas.")
-
-    idea = row.Idea
-    current_status = idea.evaluation_status
-
-    if current_status in ("accepted", "rejected"):
+    # Reject if already terminal (locked)
+    if idea.current_stage == TERMINAL_STAGE:
         raise HTTPException(
-            status_code=409,
-            detail=f"This idea is locked (status: {current_status}). No further evaluation actions are permitted.",
+            status_code=422,
+            detail="This idea is locked at final_selection. No further stage advances are permitted.",
         )
 
-    if new_status not in ALLOWED_TRANSITIONS[current_status]:
+    # Determine next stage (always exactly one step forward)
+    next_stage = STAGES[STAGE_ORDER[idea.current_stage] + 1]
+
+    # Require outcome when advancing to final_selection
+    if next_stage == TERMINAL_STAGE and outcome is None:
         raise HTTPException(
-            status_code=400,
-            detail=f"Invalid status transition: {current_status} → {new_status}. Allowed next status: {', '.join(ALLOWED_TRANSITIONS[current_status]) or 'none'}.",
+            status_code=422,
+            detail="outcome is required when advancing to final_selection.",
         )
 
-    if current_status == "under_review" and idea.assigned_admin_id != acting_admin.id:
-        raise HTTPException(
-            status_code=403,
-            detail="Only the assigned admin may evaluate this idea.",
-        )
+    if idea.current_stage == "new_idea":
+        # Race condition: another admin already claimed this idea
+        if idea.assigned_admin_id is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="Another admin has already claimed this idea.",
+            )
+        idea.assigned_admin_id = acting_admin_id
+    else:
+        # Only the assigned admin may continue from initial_screening onward
+        if idea.assigned_admin_id != acting_admin_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Only the assigned admin may advance this idea.",
+            )
 
-    if current_status == "submitted" and new_status == "under_review":
-        idea.assigned_admin_id = acting_admin.id
+    idea.current_stage = next_stage
 
-    idea.evaluation_status = new_status
-    idea.evaluation_comment = comment
-    idea.evaluated_at = _utc_now_iso()
-
-    await db.commit()
-    await db.refresh(idea)
-
-    attachments = await _load_attachments(db, idea_id)
-
-    return IdeaDetailResponse(
-        id=idea.id,
-        title=idea.title,
-        description=idea.description,
-        category=idea.category,
-        submitter_id=idea.submitter_id,
-        submitter_name=row.submitter_name,
-        submitted_at=idea.submitted_at,
-        attachments=attachments,
-        evaluation=build_evaluation_info(idea, acting_admin, admin_name=acting_admin.full_name),
-        extra_data=json.loads(idea.extra_data) if idea.extra_data is not None else None,
+    stage_review = StageReview(
+        id=str(uuid.uuid4()),
+        idea_id=idea_id,
+        stage=next_stage,
+        outcome=outcome,
+        comment=comment,
+        reviewed_by=acting_admin_id,
+        reviewed_at=_utc_now_iso(),
     )
+    db.add(stage_review)
+    await db.commit()
+
+    return await get_idea(db, idea_id, caller=acting_admin)

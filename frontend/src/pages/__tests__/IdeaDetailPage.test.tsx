@@ -3,34 +3,38 @@ import { vi, beforeEach } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AuthContext } from '@/context/AuthContext'
 import IdeaDetailPage from '../IdeaDetailPage'
+import type { IdeaDetailResponse } from '@/types/ideas'
 
 vi.mock('@/api/ideas', () => ({
   getIdea: vi.fn(),
-  evaluateIdea: vi.fn(),
+  advanceStage: vi.fn(),
 }))
 
 import { getIdea } from '@/api/ideas'
 
-const baseEvaluation = {
-  status: 'submitted' as const,
-  comment: null,
-  evaluated_at: null,
+const baseIdea: IdeaDetailResponse = {
+  id: 'i1',
+  title: 'My Idea',
+  description: 'A long description',
+  category: 'technology',
+  submitter_id: 'u1',
+  submitter_name: 'Alice',
+  submitted_at: '2026-05-13T10:00:00Z',
+  attachments: [],
+  current_stage: 'new_idea',
   assigned_admin_id: null,
   assigned_admin_name: null,
+  stage_reviews: [],
+  extra_data: null,
 }
 
-const ideaNoFile = {
-  id: 'i1', title: 'My Idea', description: 'A long description',
-  category: 'technology', submitter_id: 'u1', submitter_name: 'Alice',
-  submitted_at: '2026-05-13T10:00:00Z', attachments: [],
-  evaluation: baseEvaluation, extra_data: null,
-}
-const ideaWithFile = {
-  ...ideaNoFile,
+const ideaWithFile: IdeaDetailResponse = {
+  ...baseIdea,
   attachments: [{ id: 'a1', name: 'doc.pdf', size: 2048, mime_type: 'application/pdf', is_image: false }],
 }
-const ideaWithImage = {
-  ...ideaNoFile,
+
+const ideaWithImage: IdeaDetailResponse = {
+  ...baseIdea,
   attachments: [{ id: 'a2', name: 'photo.png', size: 1024, mime_type: 'image/png', is_image: true }],
 }
 
@@ -51,7 +55,7 @@ describe('IdeaDetailPage', () => {
   beforeEach(() => { vi.clearAllMocks() })
 
   it('displays title, category, description, submitter and date', async () => {
-    ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(ideaNoFile)
+    vi.mocked(getIdea).mockResolvedValueOnce(baseIdea)
     renderWithAuth('u1', 'submitter')
     await waitFor(() => expect(screen.getByText('My Idea')).toBeInTheDocument())
     expect(screen.getByText('A long description')).toBeInTheDocument()
@@ -60,34 +64,34 @@ describe('IdeaDetailPage', () => {
   })
 
   it('renders download link for non-image attachment when user is the submitter', async () => {
-    ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(ideaWithFile)
+    vi.mocked(getIdea).mockResolvedValueOnce(ideaWithFile)
     renderWithAuth('u1', 'submitter')
     await waitFor(() => expect(screen.getByText('doc.pdf')).toBeInTheDocument())
     expect(screen.getByRole('link', { name: /download/i })).toBeInTheDocument()
   })
 
   it('does NOT render download link for non-owner submitter', async () => {
-    ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(ideaWithFile)
+    vi.mocked(getIdea).mockResolvedValueOnce(ideaWithFile)
     renderWithAuth('other-user', 'submitter')
     await waitFor(() => expect(screen.getByText('My Idea')).toBeInTheDocument())
     expect(screen.queryByRole('link', { name: /download/i })).not.toBeInTheDocument()
   })
 
   it('renders download link for admin even if not submitter', async () => {
-    ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(ideaWithFile)
+    vi.mocked(getIdea).mockResolvedValueOnce(ideaWithFile)
     renderWithAuth('other-user', 'admin')
     await waitFor(() => expect(screen.getByText('doc.pdf')).toBeInTheDocument())
     expect(screen.getByRole('link', { name: /download/i })).toBeInTheDocument()
   })
 
   it('renders inline <img> for image attachment regardless of canDownload', async () => {
-    ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(ideaWithImage)
-    renderWithAuth('other-user', 'submitter') // non-owner, non-admin
+    vi.mocked(getIdea).mockResolvedValueOnce(ideaWithImage)
+    renderWithAuth('other-user', 'submitter')
     await waitFor(() => expect(screen.getByRole('img', { name: /photo\.png/i })).toBeInTheDocument())
   })
 
   it('renders without errors when attachments array is empty', async () => {
-    ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(ideaNoFile)
+    vi.mocked(getIdea).mockResolvedValueOnce(baseIdea)
     renderWithAuth('u1', 'submitter')
     await waitFor(() => expect(screen.getByText('My Idea')).toBeInTheDocument())
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
@@ -96,154 +100,128 @@ describe('IdeaDetailPage', () => {
 })
 
 // ---------------------------------------------------------------------------
-// T030 — EvaluationStatusBadge visibility and EvaluationForm rendering
+// StageBadge visibility
 // ---------------------------------------------------------------------------
 
-describe('IdeaDetailPage — evaluation badge', () => {
+describe('IdeaDetailPage — stage badge', () => {
   beforeEach(() => { vi.clearAllMocks() })
 
-  it('renders EvaluationStatusBadge with "Submitted" for new idea', async () => {
-    ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(ideaNoFile)
+  it('renders StageBadge with "New Idea" for new_idea stage', async () => {
+    vi.mocked(getIdea).mockResolvedValueOnce(baseIdea)
     renderWithAuth('u1', 'submitter')
-    await waitFor(() => expect(screen.getByText('Submitted')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText('New Idea').length).toBeGreaterThanOrEqual(1))
   })
 
-  it('renders EvaluationStatusBadge with "Under Review" when under_review', async () => {
-    const idea = { ...ideaNoFile, evaluation: { ...baseEvaluation, status: 'under_review' as const } }
-    ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(idea)
+  it('renders StageBadge with "Initial Screening" for initial_screening stage', async () => {
+    const idea: IdeaDetailResponse = {
+      ...baseIdea,
+      current_stage: 'initial_screening',
+      assigned_admin_id: 'admin1',
+      assigned_admin_name: 'Admin One',
+    }
+    vi.mocked(getIdea).mockResolvedValueOnce(idea)
     renderWithAuth('u1', 'submitter')
-    await waitFor(() => expect(screen.getByText('Under Review')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Initial Screening')).toBeInTheDocument())
+  })
+
+  it('renders StageBadge with "Final Selection" for final_selection stage', async () => {
+    const idea: IdeaDetailResponse = {
+      ...baseIdea,
+      current_stage: 'final_selection',
+      assigned_admin_id: 'admin1',
+      assigned_admin_name: 'Admin One',
+      stage_reviews: [{
+        id: 'sr1', stage: 'final_selection', outcome: 'accepted',
+        comment: null, reviewer_name: 'Admin One', reviewed_at: '2026-05-13T11:00:00Z',
+      }],
+    }
+    vi.mocked(getIdea).mockResolvedValueOnce(idea)
+    renderWithAuth('u1', 'submitter')
+    await waitFor(() => expect(screen.getAllByText('Final Selection').length).toBeGreaterThanOrEqual(1))
   })
 })
 
-describe('IdeaDetailPage — comment visibility (T030)', () => {
+// ---------------------------------------------------------------------------
+// StageAdvanceForm visibility
+// ---------------------------------------------------------------------------
+
+describe('IdeaDetailPage — StageAdvanceForm visibility', () => {
   beforeEach(() => { vi.clearAllMocks() })
 
-  it('submitter + under_review → comment block absent from DOM', async () => {
-    const idea = {
-      ...ideaNoFile,
-      evaluation: {
-        status: 'under_review' as const,
-        comment: null,
-        evaluated_at: '2026-05-13T10:00:00Z',
-        assigned_admin_id: null,
-        assigned_admin_name: null,
-      },
-    }
-    ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(idea)
-    renderWithAuth('u1', 'submitter')
-    await waitFor(() => expect(screen.getByText('My Idea')).toBeInTheDocument())
-    expect(screen.queryByTestId('evaluation-comment')).not.toBeInTheDocument()
-  })
-
-  it('submitter + accepted → comment block present', async () => {
-    const idea = {
-      ...ideaNoFile,
-      evaluation: {
-        status: 'accepted' as const,
-        comment: 'Great idea!',
-        evaluated_at: '2026-05-13T10:00:00Z',
-        assigned_admin_id: null,
-        assigned_admin_name: null,
-      },
-    }
-    ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(idea)
-    renderWithAuth('u1', 'submitter')
-    await waitFor(() => expect(screen.getByTestId('evaluation-comment')).toBeInTheDocument())
-    expect(screen.getByText('Great idea!')).toBeInTheDocument()
-  })
-
-  it('non-owner submitter + accepted → comment block absent', async () => {
-    const idea = {
-      ...ideaNoFile,
-      submitter_id: 'other-user',
-      evaluation: {
-        status: 'accepted' as const,
-        comment: null,
-        evaluated_at: '2026-05-13T10:00:00Z',
-        assigned_admin_id: null,
-        assigned_admin_name: null,
-      },
-    }
-    ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(idea)
-    renderWithAuth('u1', 'submitter')
-    await waitFor(() => expect(screen.getByText('My Idea')).toBeInTheDocument())
-    expect(screen.queryByTestId('evaluation-comment')).not.toBeInTheDocument()
-  })
-
-  it('admin + under_review → comment block present', async () => {
-    const idea = {
-      ...ideaNoFile,
-      evaluation: {
-        status: 'under_review' as const,
-        comment: 'Internal note',
-        evaluated_at: '2026-05-13T10:00:00Z',
-        assigned_admin_id: 'admin1',
-        assigned_admin_name: null,
-      },
-    }
-    ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(idea)
-    renderWithAuth('other-user', 'admin')
-    await waitFor(() => expect(screen.getByTestId('evaluation-comment')).toBeInTheDocument())
-    expect(screen.getByText('Internal note')).toBeInTheDocument()
-  })
-})
-
-describe('IdeaDetailPage — EvaluationForm visibility', () => {
-  beforeEach(() => { vi.clearAllMocks() })
-
-  it('admin sees EvaluationForm on submitted idea', async () => {
-    ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(ideaNoFile)
+  it('admin sees StageAdvanceForm on unassigned new_idea', async () => {
+    vi.mocked(getIdea).mockResolvedValueOnce(baseIdea)
     renderWithAuth('admin1', 'admin')
-    await waitFor(() => expect(screen.getByRole('button', { name: /save evaluation/i })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('button', { name: /advance stage/i })).toBeInTheDocument())
   })
 
-  it('submitter does NOT see EvaluationForm', async () => {
-    ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(ideaNoFile)
+  it('submitter does NOT see StageAdvanceForm', async () => {
+    vi.mocked(getIdea).mockResolvedValueOnce(baseIdea)
     renderWithAuth('u1', 'submitter')
     await waitFor(() => expect(screen.getByText('My Idea')).toBeInTheDocument())
-    expect(screen.queryByRole('button', { name: /save evaluation/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /advance stage/i })).not.toBeInTheDocument()
   })
 
-  it('admin does NOT see EvaluationForm on accepted (locked) idea', async () => {
-    const idea = {
-      ...ideaNoFile,
-      evaluation: {
-        status: 'accepted' as const,
-        comment: 'Great!',
-        evaluated_at: '2026-05-13T10:00:00Z',
-        assigned_admin_id: 'admin1',
-        assigned_admin_name: null,
-      },
+  it('admin does NOT see StageAdvanceForm on locked (final_selection) idea', async () => {
+    const idea: IdeaDetailResponse = {
+      ...baseIdea,
+      current_stage: 'final_selection',
+      assigned_admin_id: 'admin1',
+      assigned_admin_name: 'Admin One',
     }
-    ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(idea)
+    vi.mocked(getIdea).mockResolvedValueOnce(idea)
     renderWithAuth('admin1', 'admin')
     await waitFor(() => expect(screen.getByText('My Idea')).toBeInTheDocument())
-    expect(screen.queryByRole('button', { name: /save evaluation/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /advance stage/i })).not.toBeInTheDocument()
+  })
+
+  it('non-assigned admin does NOT see StageAdvanceForm when another admin is assigned', async () => {
+    const idea: IdeaDetailResponse = {
+      ...baseIdea,
+      current_stage: 'initial_screening',
+      assigned_admin_id: 'admin1',
+      assigned_admin_name: 'Admin One',
+    }
+    vi.mocked(getIdea).mockResolvedValueOnce(idea)
+    renderWithAuth('admin2', 'admin')  // different admin
+    await waitFor(() => expect(screen.getByText('My Idea')).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: /advance stage/i })).not.toBeInTheDocument()
+  })
+
+  it('assigned admin DOES see StageAdvanceForm', async () => {
+    const idea: IdeaDetailResponse = {
+      ...baseIdea,
+      current_stage: 'initial_screening',
+      assigned_admin_id: 'admin1',
+      assigned_admin_name: 'Admin One',
+    }
+    vi.mocked(getIdea).mockResolvedValueOnce(idea)
+    renderWithAuth('admin1', 'admin')
+    await waitFor(() => expect(screen.getByRole('button', { name: /advance stage/i })).toBeInTheDocument())
   })
 })
+
+// ---------------------------------------------------------------------------
+// Reviewer name
+// ---------------------------------------------------------------------------
 
 describe('IdeaDetailPage — reviewer name', () => {
   beforeEach(() => { vi.clearAllMocks() })
 
   it('renders "—" when assigned_admin_name is null', async () => {
-    ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(ideaNoFile)
+    vi.mocked(getIdea).mockResolvedValueOnce(baseIdea)
     renderWithAuth('u1', 'submitter')
     await waitFor(() => expect(screen.getByText('My Idea')).toBeInTheDocument())
     expect(screen.getByText(/Reviewer: —/)).toBeInTheDocument()
   })
 
   it('renders reviewer name when assigned_admin_name is present', async () => {
-    const idea = {
-      ...ideaNoFile,
-      evaluation: {
-        ...baseEvaluation,
-        status: 'under_review' as const,
-        assigned_admin_id: 'admin1',
-        assigned_admin_name: 'Bob Admin',
-      },
+    const idea: IdeaDetailResponse = {
+      ...baseIdea,
+      current_stage: 'initial_screening',
+      assigned_admin_id: 'admin1',
+      assigned_admin_name: 'Bob Admin',
     }
-    ;(getIdea as ReturnType<typeof vi.fn>).mockResolvedValueOnce(idea)
+    vi.mocked(getIdea).mockResolvedValueOnce(idea)
     renderWithAuth('u1', 'submitter')
     await waitFor(() => expect(screen.getByText('My Idea')).toBeInTheDocument())
     expect(screen.getByText(/Bob Admin/)).toBeInTheDocument()
