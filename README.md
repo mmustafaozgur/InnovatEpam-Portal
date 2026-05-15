@@ -42,7 +42,7 @@ An employee innovation management platform built as a capstone project for the E
 ### 1. Clone the repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/mmustafaozgur/InnovatEpam-Portal.git
 cd InnovatEpam-Portal
 ```
 
